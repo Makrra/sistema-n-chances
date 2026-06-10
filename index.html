@@ -280,10 +280,11 @@ select.form-control option { background: var(--bg); }
       <span style="color:var(--muted);font-size:.75rem">até</span>
       <input type="date" class="form-control" id="caixa-ate" style="flex:1;padding:8px;font-size:.8rem" onchange="renderCaixa()">
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
       <div class="stat-card"><div class="stat-val" id="caixa-gasto" style="font-size:1.1rem">R$ 0,00</div><div class="stat-lbl">Gasto em Jogos</div></div>
       <div class="stat-card"><div class="stat-val" id="caixa-lucro" style="font-size:1.1rem">R$ 0,00</div><div class="stat-lbl">Lucro no Período</div></div>
     </div>
+    <div class="stat-card"><div class="stat-val" id="caixa-premios" style="font-size:1.1rem;color:var(--yellow)">R$ 0,00</div><div class="stat-lbl">Acumulado em Prêmios</div></div>
   </div>
   <div id="dash-boloes-list"></div>
 </div>
@@ -816,25 +817,30 @@ async function loadDashboard() {
 
 // Recalcula o card "Caixa do Período" com base no intervalo de datas
 // selecionado, usando os bolões já carregados pelo dashboard.
+// Usa criado_em (sempre preenchido) como referência: é quando o custo do
+// bolão é de fato desembolsado, mesmo que o sorteio ainda não tenha ocorrido.
 function renderCaixa() {
   const de  = document.getElementById('caixa-de').value;
   const ate = document.getElementById('caixa-ate').value;
 
-  const noPeriodo = dashBoloes.filter(b => b.data_sorteio
-    && (!de  || b.data_sorteio >= de)
-    && (!ate || b.data_sorteio <= ate));
+  const noPeriodo = dashBoloes.filter(b => {
+    const dataRef = (b.criado_em || '').slice(0, 10);
+    return dataRef && (!de || dataRef >= de) && (!ate || dataRef <= ate);
+  });
 
-  let gasto = 0, lucro = 0;
+  let gasto = 0, lucro = 0, premios = 0;
   noPeriodo.forEach(b => {
     const custo = parseFloat(b.custo) || 0;
     gasto += custo;
     lucro += (dashArrecadado[b.id] || 0) - custo;
+    if (b.status === 'SORTEADO') premios += parseFloat(b.premio_ganho) || 0;
   });
 
   document.getElementById('caixa-gasto').textContent = fmtMoeda(gasto);
   const lucroEl = document.getElementById('caixa-lucro');
   lucroEl.textContent = fmtMoeda(lucro);
   lucroEl.style.color = lucro >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('caixa-premios').textContent = fmtMoeda(premios);
 }
 
 // ============================================================
