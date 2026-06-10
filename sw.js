@@ -1,4 +1,4 @@
-const CACHE = 'n-chances-v1';
+const CACHE = 'n-chances-v2';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -15,11 +15,19 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 
+// Network-first: sempre busca a versão mais recente; usa o cache só se
+// estiver offline. Evita o app ficar "travado" numa versão antiga.
 self.addEventListener('fetch', (e) => {
   // Supabase requests sempre vão para a rede (dados precisam ser atuais)
   if (e.request.url.includes('supabase.co')) return;
 
   e.respondWith(
-    caches.match(e.request).then((cached) => cached || fetch(e.request))
+    fetch(e.request)
+      .then((res) => {
+        const resClone = res.clone();
+        caches.open(CACHE).then((cache) => cache.put(e.request, resClone));
+        return res;
+      })
+      .catch(() => caches.match(e.request))
   );
 });
