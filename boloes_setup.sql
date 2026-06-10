@@ -64,17 +64,29 @@ CREATE INDEX IF NOT EXISTS idx_participacoes_telefone ON participacoes(telefone)
 CREATE INDEX IF NOT EXISTS idx_extrato_telefone       ON extrato(telefone);
 CREATE INDEX IF NOT EXISTS idx_saques_status          ON saques(status);
 
--- 6. RLS - habilita mas permite tudo via anon key (ajuste conforme necessário)
+-- 6. RLS - exige usuário autenticado via Supabase Auth (login no app)
+-- Aplicado apenas nas tabelas financeiras NOVAS (100% controladas por este app).
+-- 'boloes' e 'usuarios' NÃO foram alteradas aqui de propósito: já existiam antes
+-- deste projeto e podem ser usadas por outras integrações (ex: bot do WhatsApp/n8n)
+-- com a anon key sem login. Avalie separadamente antes de restringi-las.
 ALTER TABLE participacoes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE extrato       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE saques        ENABLE ROW LEVEL SECURITY;
 
--- Políticas abertas (app admin rodando no browser com anon key)
-CREATE POLICY "allow_all_participacoes" ON participacoes FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "allow_all_extrato"       ON extrato       FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "allow_all_saques"        ON saques        FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "allow_all_boloes"        ON boloes        FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "allow_all_usuarios"      ON usuarios      FOR ALL USING (true) WITH CHECK (true);
+-- Remove políticas abertas antigas, se existirem
+DROP POLICY IF EXISTS "allow_all_participacoes" ON participacoes;
+DROP POLICY IF EXISTS "allow_all_extrato"       ON extrato;
+DROP POLICY IF EXISTS "allow_all_saques"        ON saques;
+DROP POLICY IF EXISTS "allow_all_boloes"        ON boloes;
+DROP POLICY IF EXISTS "allow_all_usuarios"      ON usuarios;
+
+-- Apenas usuários autenticados (logados no app) podem ler/escrever
+CREATE POLICY "auth_only_participacoes" ON participacoes FOR ALL
+  USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "auth_only_extrato" ON extrato FOR ALL
+  USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "auth_only_saques" ON saques FOR ALL
+  USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 
 -- 7. VIEW: saldo por cliente (soma do extrato)
 DROP VIEW IF EXISTS saldo_clientes;

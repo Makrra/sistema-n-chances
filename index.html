@@ -195,6 +195,26 @@ select.form-control option { background: var(--bg); }
 .ext-premio  { background: rgba(253,203,110,.15); }
 .ext-saque   { background: rgba(116,185,255,.15); }
 .divider { height: 1px; background: var(--border); margin: 16px 0; }
+/* LOGIN */
+.login-screen {
+  position: fixed; inset: 0; background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 500; padding: 20px;
+}
+.login-card {
+  width: 100%; max-width: 360px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 32px 24px; text-align: center;
+}
+.login-logo { font-size: 1.6rem; font-weight: 800; color: var(--accent); margin-bottom: 4px; }
+.login-sub { font-size: 0.8rem; color: var(--muted); margin-bottom: 24px; }
+.login-error {
+  color: var(--red); font-size: 0.8rem; margin-top: 10px; min-height: 1.2em;
+}
+.logout-btn {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  border-radius: 8px; padding: 6px 10px; font-size: 0.7rem; cursor: pointer;
+}
 @media (min-width: 520px) {
   body { max-width: 520px; margin: 0 auto; }
   .modal { border-radius: 20px; margin-bottom: 20px; }
@@ -203,12 +223,36 @@ select.form-control option { background: var(--bg); }
 </head>
 <body>
 
+<!-- ======= LOGIN ======= -->
+<div class="login-screen" id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">N-Chances</div>
+    <div class="login-sub">Faça login para acessar o sistema</div>
+    <div class="form-group">
+      <label class="form-label">E-mail</label>
+      <input class="form-control" id="login-email" type="email" placeholder="seu@email.com" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Senha</label>
+      <input class="form-control" id="login-password" type="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary btn-block" onclick="doLogin()">Entrar</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- ======= APP ======= -->
+<div id="app" style="display:none">
+
 <div class="header">
   <div>
     <h1>N-Chances</h1>
     <div class="subtitle">Sistema de Bolões</div>
   </div>
-  <div id="header-badge"></div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <div id="header-badge"></div>
+    <button class="logout-btn" onclick="doLogout()">Sair</button>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -438,6 +482,8 @@ select.form-control option { background: var(--bg); }
     <button class="btn btn-block" style="background:var(--border);color:var(--muted)" onclick="closeModal('modal-saque')">Cancelar</button>
   </div>
 </div>
+
+</div><!-- /#app -->
 
 <script>
 // ============================================================
@@ -964,6 +1010,39 @@ async function solicitarSaque() {
 }
 
 // ============================================================
+// AUTH
+// ============================================================
+async function doLogin() {
+  const email    = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl    = document.getElementById('login-error');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Preencha e-mail e senha'; return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) { errEl.textContent = 'E-mail ou senha inválidos'; return; }
+  showApp();
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-password').value = '';
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  init();
+}
+
+// Permite Enter para logar
+document.getElementById('login-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+// ============================================================
 // INIT
 // ============================================================
 async function init() {
@@ -973,7 +1052,10 @@ async function init() {
   loadDashboard();
 }
 
-init();
+(async function checkSession() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) showApp();
+})();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
