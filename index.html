@@ -640,6 +640,8 @@ let allBoloes   = [];
 let currentBolaoFilter = 'todos';
 let currentSaquesFilter = 'pendente';
 let currentBolaoParts = [];
+let cotasOcupadas = {};      // bolao_id -> soma de cotas (reservadas + vendidas)
+let arrecadadoPorBolao = {}; // bolao_id -> soma de valor_total das participações pagas
 
 // ============================================================
 // NAVIGATION
@@ -755,9 +757,20 @@ async function loadDashboard() {
 // ============================================================
 async function loadBoloes() {
   document.getElementById('boloes-list').innerHTML = '<div class="loading"><div class="spinner"></div>Carregando...</div>';
-  const { data, error } = await sb.from('boloes').select('*').order('criado_em', {ascending: false});
-  if (error) { toast('Erro ao carregar bolões', true); return; }
-  allBoloes = data || [];
+  const [boRes, partRes] = await Promise.all([
+    sb.from('boloes').select('*').order('criado_em', {ascending: false}),
+    sb.from('participacoes').select('bolao_id,cotas,valor_total,status_pagamento'),
+  ]);
+  if (boRes.error) { toast('Erro ao carregar bolões', true); return; }
+  allBoloes = boRes.data || [];
+  cotasOcupadas = {};
+  arrecadadoPorBolao = {};
+  (partRes.data || []).forEach(p => {
+    cotasOcupadas[p.bolao_id] = (cotasOcupadas[p.bolao_id] || 0) + (parseFloat(p.cotas) || 0);
+    if (p.status_pagamento === 'pago') {
+      arrecadadoPorBolao[p.bolao_id] = (arrecadadoPorBolao[p.bolao_id] || 0) + (parseFloat(p.valor_total) || 0);
+    }
+  });
   renderBoloes();
 }
 
@@ -778,7 +791,10 @@ function renderBoloes() {
     container.innerHTML = '<div class="loading">Nenhum bolão encontrado.</div>';
     return;
   }
-  container.innerHTML = list.map(b => `
+  container.innerHTML = list.map(b => {
+    const ocupadas = cotasOcupadas[b.id] || 0;
+    const lucro = (arrecadadoPorBolao[b.id] || 0) - (parseFloat(b.custo) || 0);
+    return `
     <div class="card" onclick="abrirBolao('${b.id}')">
       <div class="card-header">
         <div>
@@ -791,10 +807,12 @@ function renderBoloes() {
         <span>Concurso: #${b.concurso || '—'}</span>
         <span>Cota: ${fmtMoeda(b.valor_cota_inteira)}</span>
         <span>Meia: ${fmtMoeda(b.valor_cota_meia)}</span>
-        <span>Cotas: ${b.cotas_disponiveis ?? '—'}/${b.quantidade_cotas || '—'}</span>
+        <span>Cotas: ${ocupadas}/${b.quantidade_cotas || '—'}</span>
+        <span style="color:${lucro>=0?'var(--green)':'var(--red)'}">Lucro: ${fmtMoeda(lucro)}</span>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 async function criarBolao() {
@@ -908,6 +926,7 @@ async function abrirBolao(id) {
                   ? `<button class="btn btn-sm btn-success" style="font-size:.65rem;padding:4px 8px" onclick="marcarPago('${p.id}','${b.id}')">Marcar Pago</button>`
                   : ''}
                 <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--accent2);color:#74b9ff" onclick="abrirEditarPart('${p.id}','${b.id}')">Editar</button>
+                <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--red);color:#fff" onclick="excluirParticipacao('${p.id}','${b.id}')">Excluir</button>
               </div>
             </div>
           </div>`;
@@ -1282,6 +1301,34 @@ async function salvarEdicaoPart() {
   toast('Participação atualizada!');
   closeModal('modal-editar-part');
   abrirBolao(bolaoId);
+  loadDashboard();
+}
+
+// ============================================================
+// EXCLUIR PARTICIPAÇÃO (remove cliente do bolão e limpa o extrato)
+// ============================================================
+async function excluirParticipacao(partId, bolaoId) {
+  const p = currentBolaoParts.find(x => x.id === partId);
+  if (!p) return;
+  const cliente = allClientes.find(c => c.telefone === p.telefone) || {};
+  const nome = cliente.nome_completo || cliente.apelido || p.telefone;
+  const ok = confirm(
+    `Remover ${nome} deste bolão?\n\n` +
+    `Isso também excluirá os lançamentos do extrato (cotas, prêmios) ` +
+    `relacionados a este bolão para esse cliente.\n\n` +
+    `Esta ação não pode ser desfeita.`
+  );
+  if (!ok) return;
+
+  const { error: errExt } = await sb.from('extrato').delete().eq('bolao_id', bolaoId).eq('telefone', p.telefone);
+  if (errExt) { toast('Erro ao limpar extrato: ' + errExt.message, true); return; }
+
+  const { error } = await sb.from('participacoes').delete().eq('id', partId);
+  if (error) { toast('Erro: ' + error.message, true); return; }
+
+  toast('Participante removido do bolão!');
+  abrirBolao(bolaoId);
+  loadBoloes();
   loadDashboard();
 }
 
