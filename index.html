@@ -169,7 +169,7 @@ select.form-control option { background: var(--bg); }
   max-height: 200px; overflow-y: auto; margin-top: 8px;
   border: 1px solid var(--border); border-radius: 8px; padding: 0 10px;
 }
-.picker-list .list-item { cursor: pointer; }
+.picker-list .list-item { cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: rgba(233,69,96,.2); }
 .picker-list .list-item.selected { background: rgba(233,69,96,.12); border-radius: 8px; }
 .picker-empty { padding: 12px 0; color: var(--muted); font-size: 0.8rem; text-align: center; }
 /* TABS */
@@ -483,7 +483,7 @@ select.form-control option { background: var(--bg); }
     <div class="form-group">
       <label class="form-label">Cliente</label>
       <input class="form-control" id="ap-busca" placeholder="Buscar por nome ou telefone..." oninput="filtrarApClientes()">
-      <div class="picker-list" id="ap-clientes-list"></div>
+      <div class="picker-list" id="ap-clientes-list" onclick="onPickApCliente(event)"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group">
@@ -1015,7 +1015,7 @@ function renderApClientes(list) {
   }
   const selecionado = document.getElementById('ap-telefone').value;
   container.innerHTML = list.map(c => `
-    <div class="list-item ${c.telefone === selecionado ? 'selected' : ''}" onclick="selecionarApCliente('${c.telefone}')">
+    <div class="list-item ${c.telefone === selecionado ? 'selected' : ''}" data-tel="${c.telefone}">
       <div class="avatar">${initials(c.apelido || c.nome_completo)}</div>
       <div class="item-info">
         <div class="item-name">${c.apelido || c.nome_completo}</div>
@@ -1023,6 +1023,12 @@ function renderApClientes(list) {
       </div>
     </div>
   `).join('');
+}
+
+function onPickApCliente(e) {
+  const item = e.target.closest('.list-item[data-tel]');
+  if (!item) return;
+  selecionarApCliente(item.dataset.tel);
 }
 
 function filtrarApClientes() {
