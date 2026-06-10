@@ -202,6 +202,7 @@ select.form-control option { background: var(--bg); }
 .ext-debito  { background: rgba(214,48,49,.15); }
 .ext-premio  { background: rgba(253,203,110,.15); }
 .ext-saque   { background: rgba(116,185,255,.15); }
+.ext-pix     { background: rgba(50,188,173,.15); }
 .divider { height: 1px; background: var(--border); margin: 16px 0; }
 /* LOGIN */
 .login-screen {
@@ -271,6 +272,18 @@ select.form-control option { background: var(--bg); }
     <div class="stat-card"><div class="stat-val" id="stat-boloes">—</div><div class="stat-lbl">Bolões Abertos</div></div>
     <div class="stat-card"><div class="stat-val" id="stat-pendentes">—</div><div class="stat-lbl">Pagtos Pendentes</div></div>
     <div class="stat-card"><div class="stat-val" id="stat-saques">—</div><div class="stat-lbl">Saques Pend.</div></div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title" style="margin-bottom:10px">Caixa do Período</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <input type="date" class="form-control" id="caixa-de" style="flex:1;padding:8px;font-size:.8rem" onchange="renderCaixa()">
+      <span style="color:var(--muted);font-size:.75rem">até</span>
+      <input type="date" class="form-control" id="caixa-ate" style="flex:1;padding:8px;font-size:.8rem" onchange="renderCaixa()">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="stat-card"><div class="stat-val" id="caixa-gasto" style="font-size:1.1rem">R$ 0,00</div><div class="stat-lbl">Gasto em Jogos</div></div>
+      <div class="stat-card"><div class="stat-val" id="caixa-lucro" style="font-size:1.1rem">R$ 0,00</div><div class="stat-lbl">Lucro no Período</div></div>
+    </div>
   </div>
   <div id="dash-boloes-list"></div>
 </div>
@@ -664,6 +677,8 @@ let currentSaquesFilter = 'pendente';
 let currentBolaoParts = [];
 let cotasOcupadas = {};      // bolao_id -> soma de cotas (reservadas + vendidas)
 let arrecadadoPorBolao = {}; // bolao_id -> soma de valor_total das participações pagas
+let dashBoloes = [];          // boloes carregados no dashboard (p/ recálculo do caixa)
+let dashArrecadado = {};      // bolao_id -> arrecadado (excluindo cortesia do organizador)
 
 // ============================================================
 // NAVIGATION
@@ -739,39 +754,87 @@ function statusBadge(s) {
 async function loadDashboard() {
   const [boloesRes, partRes, saquesRes] = await Promise.all([
     sb.from('boloes').select('*').order('criado_em', {ascending: false}),
-    sb.from('participacoes').select('*').eq('status_pagamento','pendente'),
+    sb.from('participacoes').select('bolao_id,telefone,valor_total,status_pagamento'),
     sb.from('saques').select('*').eq('status','pendente'),
   ]);
   const boloes = boloesRes.data || [];
   const abertos = boloes.filter(b => b.status === 'ABERTO');
-  const pendentes = partRes.data || [];
+  const allParts = partRes.data || [];
+  const pendentes = allParts.filter(p => p.status_pagamento === 'pendente');
   const saques = saquesRes.data || [];
 
   document.getElementById('stat-boloes').textContent   = abertos.length;
   document.getElementById('stat-pendentes').textContent = pendentes.length;
   document.getElementById('stat-saques').textContent    = saques.length;
 
+  const participantesPorBolao = {};
+  const arrecadadoPorBolaoDash = {};
+  allParts.forEach(p => {
+    participantesPorBolao[p.bolao_id] = (participantesPorBolao[p.bolao_id] || 0) + 1;
+    // Cotas de cortesia do organizador não contam como arrecadado
+    if (p.status_pagamento === 'pago' && p.telefone !== TELEFONE_ORGANIZADOR) {
+      arrecadadoPorBolaoDash[p.bolao_id] = (arrecadadoPorBolaoDash[p.bolao_id] || 0) + (parseFloat(p.valor_total) || 0);
+    }
+  });
+  dashBoloes = boloes;
+  dashArrecadado = arrecadadoPorBolaoDash;
+
   const container = document.getElementById('dash-boloes-list');
   if (!boloes.length) {
     container.innerHTML = '<div class="loading">Nenhum bolão cadastrado ainda.</div>';
-    return;
-  }
-  container.innerHTML = boloes.slice(0,5).map(b => `
-    <div class="card" onclick="abrirBolao('${b.id}')">
-      <div class="card-header">
-        <div>
-          <div class="card-title">${b.nome || b.loteria || 'Bolão'}</div>
-          <div class="card-sub">${b.loteria || ''} • ${fmtData(b.data_sorteio)}</div>
+  } else {
+    container.innerHTML = boloes.slice(0,5).map(b => `
+      <div class="card" onclick="abrirBolao('${b.id}')">
+        <div class="card-header">
+          <div>
+            <div class="card-title">${b.nome || b.loteria || 'Bolão'}</div>
+            <div class="card-sub">${b.loteria || ''} • ${fmtData(b.data_sorteio)}</div>
+          </div>
+          ${statusBadge(b.status)}
         </div>
-        ${statusBadge(b.status)}
+        <div style="display:flex;gap:16px;font-size:.8rem;color:var(--muted);margin-top:6px;flex-wrap:wrap">
+          <span>Concurso #${b.concurso || '—'}</span>
+          <span>Cota: ${fmtMoeda(b.valor_cota_inteira)}</span>
+          <span>Meia: ${fmtMoeda(b.valor_cota_meia)}</span>
+          <span>Participantes: ${participantesPorBolao[b.id] || 0}</span>
+          ${b.status === 'SORTEADO' ? `<span style="color:var(--yellow)">Prêmio: ${fmtMoeda(b.premio_ganho)}</span>` : ''}
+        </div>
       </div>
-      <div style="display:flex;gap:16px;font-size:.8rem;color:var(--muted)">
-        <span>Concurso #${b.concurso || '—'}</span>
-        <span>Cota: ${fmtMoeda(b.valor_cota_inteira)}</span>
-        <span>Meia: ${fmtMoeda(b.valor_cota_meia)}</span>
-      </div>
-    </div>
-  `).join('');
+    `).join('');
+  }
+
+  const inputDe  = document.getElementById('caixa-de');
+  const inputAte = document.getElementById('caixa-ate');
+  if (!inputDe.value || !inputAte.value) {
+    const hoje = new Date();
+    const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    inputDe.value  = primeiroDia.toISOString().slice(0,10);
+    inputAte.value = hoje.toISOString().slice(0,10);
+  }
+  renderCaixa();
+}
+
+// Recalcula o card "Caixa do Período" com base no intervalo de datas
+// selecionado, usando os bolões já carregados pelo dashboard.
+function renderCaixa() {
+  const de  = document.getElementById('caixa-de').value;
+  const ate = document.getElementById('caixa-ate').value;
+
+  const noPeriodo = dashBoloes.filter(b => b.data_sorteio
+    && (!de  || b.data_sorteio >= de)
+    && (!ate || b.data_sorteio <= ate));
+
+  let gasto = 0, lucro = 0;
+  noPeriodo.forEach(b => {
+    const custo = parseFloat(b.custo) || 0;
+    gasto += custo;
+    lucro += (dashArrecadado[b.id] || 0) - custo;
+  });
+
+  document.getElementById('caixa-gasto').textContent = fmtMoeda(gasto);
+  const lucroEl = document.getElementById('caixa-lucro');
+  lucroEl.textContent = fmtMoeda(lucro);
+  lucroEl.style.color = lucro >= 0 ? 'var(--green)' : 'var(--red)';
 }
 
 // ============================================================
@@ -1494,16 +1557,36 @@ async function abrirExtrato(telefone, nome) {
   modal.innerHTML = '<div class="loading"><div class="spinner"></div>Carregando...</div>';
   openModal('modal-extrato');
 
-  const [extratoRes, saldoRes] = await Promise.all([
-    sb.from('extrato').select('*').eq('telefone', telefone).order('criado_em', {ascending: false}).limit(30),
+  const [extratoRes, saldoRes, partsRes] = await Promise.all([
+    sb.from('extrato').select('*').eq('telefone', telefone).order('criado_em', {ascending: false}).limit(50),
     sb.from('saldo_clientes').select('*').eq('telefone', telefone).single(),
+    sb.from('participacoes').select('*, boloes(nome,concurso)').eq('telefone', telefone).eq('status_pagamento','pago'),
   ]);
 
-  const items   = extratoRes.data || [];
+  const extratoItems = extratoRes.data || [];
   const saldo   = saldoRes.data?.saldo || 0;
   const saldoCls = saldo >= 0 ? 'text-green' : 'text-red';
-  const extIcons = { credito:'💰', debito:'📤', premio:'🏆', saque:'🏧' };
-  const extCls   = { credito:'ext-credito', debito:'ext-debito', premio:'ext-premio', saque:'ext-saque' };
+
+  // Pagamentos via Pix não geram débito no extrato (não afetam o saldo), então
+  // são derivados das participações pagas para aparecer no histórico do cliente.
+  const debitoBolaoIds = new Set(extratoItems.filter(e => e.tipo === 'debito' && e.bolao_id).map(e => e.bolao_id));
+  const pagamentosPix = (partsRes.data || [])
+    .filter(p => (p.forma_pagamento || 'pix') !== 'saldo' && parseFloat(p.valor_total) > 0 && !debitoBolaoIds.has(p.bolao_id))
+    .map(p => ({
+      tipo: 'pix',
+      valor: p.valor_total,
+      descricao: `Pagamento Pix - ${p.boloes?.nome || 'Bolão'}${p.boloes?.concurso ? ' #' + p.boloes.concurso : ''}`,
+      criado_em: p.pago_em || p.criado_em,
+      naoAfetaSaldo: true,
+    }));
+
+  const items = [...extratoItems, ...pagamentosPix]
+    .sort((a, b) => new Date(b.criado_em) - new Date(a.criado_em))
+    .slice(0, 50);
+
+  const extIcons = { credito:'💰', debito:'📤', premio:'🏆', saque:'🏧', pix:'📱' };
+  const extCls   = { credito:'ext-credito', debito:'ext-debito', premio:'ext-premio', saque:'ext-saque', pix:'ext-pix' };
+  const positivos = ['credito','premio'];
 
   modal.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -1525,10 +1608,10 @@ async function abrirExtrato(telefone, nome) {
           <div class="ext-icon ${extCls[e.tipo]||'ext-credito'}">${extIcons[e.tipo]||'💲'}</div>
           <div class="item-info">
             <div class="item-name">${e.descricao || e.tipo}</div>
-            <div class="item-detail">${fmtData(e.criado_em)}</div>
+            <div class="item-detail">${fmtData(e.criado_em)}${e.naoAfetaSaldo ? ' • não afeta saldo' : ''}</div>
           </div>
-          <div class="item-value ${e.tipo==='credito'||e.tipo==='premio' ? 'text-green' : 'text-red'}">
-            ${e.tipo==='credito'||e.tipo==='premio' ? '+' : '-'}${fmtMoeda(e.valor)}
+          <div class="item-value ${positivos.includes(e.tipo) ? 'text-green' : 'text-red'}">
+            ${positivos.includes(e.tipo) ? '+' : '-'}${fmtMoeda(e.valor)}
           </div>
         </div>
       `).join('')
