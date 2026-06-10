@@ -480,15 +480,17 @@ select.form-control option { background: var(--bg); }
     <div class="modal-title">Adicionar Participante</div>
     <input type="hidden" id="ap-bolao-id">
     <input type="hidden" id="ap-telefone">
+    <input type="hidden" id="ap-valor-cota">
     <div class="form-group">
       <label class="form-label">Cliente</label>
       <input class="form-control" id="ap-busca" placeholder="Buscar por nome ou telefone..." oninput="filtrarApClientes()">
+      <div id="ap-selecionado" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(46,213,115,.12);color:var(--green);font-size:.8rem;font-weight:600"></div>
       <div class="picker-list" id="ap-clientes-list" onclick="onPickApCliente(event)"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group">
         <label class="form-label">Cotas</label>
-        <input class="form-control" id="ap-cotas" type="number" value="1" min="1">
+        <input class="form-control" id="ap-cotas" type="number" value="1" min="1" oninput="atualizarValorParticipante()">
       </div>
       <div class="form-group">
         <label class="form-label">Valor Total (R$)</label>
@@ -505,6 +507,40 @@ select.form-control option { background: var(--bg); }
     <button class="btn btn-primary btn-block" onclick="adicionarParticipante()">Adicionar</button>
     <div style="height:10px"></div>
     <button class="btn btn-block" style="background:var(--border);color:var(--muted)" onclick="closeModal('modal-add-part')">Cancelar</button>
+  </div>
+</div>
+
+<!-- Modal: Editar Participação -->
+<div class="modal-overlay" id="modal-editar-part">
+  <div class="modal">
+    <div class="modal-title">Editar Participação</div>
+    <input type="hidden" id="epart-id">
+    <input type="hidden" id="epart-bolao-id">
+    <input type="hidden" id="epart-valor-cota">
+    <div class="form-group">
+      <label class="form-label">Cliente</label>
+      <div id="epart-nome" style="font-weight:600;padding:8px 0"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label class="form-label">Cotas</label>
+        <input class="form-control" id="epart-cotas" type="number" min="1" oninput="atualizarValorEditPart()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Valor Total (R$)</label>
+        <input class="form-control" id="epart-valor" type="number" step="0.01" placeholder="0.00">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Status de Pagamento</label>
+      <select class="form-control" id="epart-status">
+        <option value="pendente">Pendente</option>
+        <option value="pago">Pago</option>
+      </select>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="salvarEdicaoPart()">Salvar Alterações</button>
+    <div style="height:10px"></div>
+    <button class="btn btn-block" style="background:var(--border);color:var(--muted)" onclick="closeModal('modal-editar-part')">Cancelar</button>
   </div>
 </div>
 
@@ -819,9 +855,12 @@ async function abrirBolao(id) {
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
               ${statusBadge(p.status_pagamento)}
-              ${p.status_pagamento==='pendente'
-                ? `<button class="btn btn-sm btn-success" style="font-size:.65rem;padding:4px 8px" onclick="marcarPago('${p.id}','${b.id}')">Marcar Pago</button>`
-                : ''}
+              <div style="display:flex;gap:4px">
+                ${p.status_pagamento==='pendente'
+                  ? `<button class="btn btn-sm btn-success" style="font-size:.65rem;padding:4px 8px" onclick="marcarPago('${p.id}','${b.id}')">Marcar Pago</button>`
+                  : ''}
+                <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--accent2);color:#74b9ff" onclick="abrirEditarPart('${p.id}','${b.id}')">Editar</button>
+              </div>
             </div>
           </div>`;
       }).join('')
@@ -839,13 +878,42 @@ async function updateBolaoStatus(id, status) {
 }
 
 async function marcarPago(partId, bolaoId) {
+  const p = currentBolaoParts.find(x => x.id === partId);
   const { error } = await sb.from('participacoes').update({
     status_pagamento: 'pago', pago_em: new Date().toISOString()
   }).eq('id', partId);
   if (error) { toast('Erro: ' + error.message, true); return; }
+  if (p) {
+    const bolao = allBoloes.find(b => b.id === bolaoId);
+    await reconciliarExtratoDebito(p.telefone, bolaoId, 'pago', p.valor_total, bolao?.nome);
+  }
   toast('Pagamento confirmado!');
   abrirBolao(bolaoId);
   loadDashboard();
+}
+
+// Garante que o extrato reflita o status de pagamento atual da participação:
+// 'pago' -> existe um lançamento de débito com o valor correto;
+// 'pendente' -> nenhum lançamento de débito para esse bolão/cliente.
+async function reconciliarExtratoDebito(telefone, bolaoId, statusPagamento, valorTotal, bolaoNome) {
+  const { data: existentes } = await sb.from('extrato').select('id,valor')
+    .eq('telefone', telefone).eq('bolao_id', bolaoId).eq('tipo', 'debito');
+  const existente = (existentes || [])[0];
+  if (statusPagamento === 'pago') {
+    if (existente) {
+      if (Number(existente.valor) !== Number(valorTotal)) {
+        await sb.from('extrato').update({ valor: valorTotal }).eq('id', existente.id);
+      }
+    } else {
+      await sb.from('extrato').insert({
+        telefone, tipo: 'debito', valor: valorTotal,
+        descricao: `Participação bolão ${bolaoNome || bolaoId}`,
+        bolao_id: bolaoId,
+      });
+    }
+  } else if (existente) {
+    await sb.from('extrato').delete().eq('id', existente.id);
+  }
 }
 
 // ============================================================
@@ -1000,11 +1068,25 @@ async function confirmarExcluirBolao(id) {
 // ============================================================
 async function abrirAddPart(bolaoId) {
   closeModal('modal-bolao-det');
+  const bolao = allBoloes.find(b => b.id === bolaoId);
   document.getElementById('ap-bolao-id').value = bolaoId;
   document.getElementById('ap-telefone').value = '';
   document.getElementById('ap-busca').value = '';
+  document.getElementById('ap-valor-cota').value = bolao?.valor_cota_inteira || 0;
+  document.getElementById('ap-cotas').value = 1;
+  document.getElementById('ap-status').value = 'pendente';
+  const sel = document.getElementById('ap-selecionado');
+  sel.style.display = 'none';
+  sel.textContent = '';
   renderApClientes(allClientes);
+  atualizarValorParticipante();
   openModal('modal-add-part');
+}
+
+function atualizarValorParticipante() {
+  const cotas = parseInt(document.getElementById('ap-cotas').value) || 0;
+  const valorCota = parseFloat(document.getElementById('ap-valor-cota').value) || 0;
+  document.getElementById('ap-valor').value = (cotas * valorCota).toFixed(2);
 }
 
 function renderApClientes(list) {
@@ -1042,6 +1124,12 @@ function filtrarApClientes() {
 
 function selecionarApCliente(tel) {
   document.getElementById('ap-telefone').value = tel;
+  const c = allClientes.find(x => x.telefone === tel);
+  const sel = document.getElementById('ap-selecionado');
+  if (c) {
+    sel.textContent = `Selecionado: ${c.nome_completo || c.apelido || tel}`;
+    sel.style.display = 'block';
+  }
   filtrarApClientes();
 }
 
@@ -1069,6 +1157,56 @@ async function adicionarParticipante() {
   }
   toast('Participante adicionado!');
   closeModal('modal-add-part');
+  abrirBolao(bolaoId);
+  loadDashboard();
+}
+
+// ============================================================
+// EDITAR PARTICIPAÇÃO (cotas / valor / status de pagamento)
+// ============================================================
+function abrirEditarPart(partId, bolaoId) {
+  const p = currentBolaoParts.find(x => x.id === partId);
+  if (!p) return;
+  const bolao = allBoloes.find(b => b.id === bolaoId);
+  const cliente = allClientes.find(c => c.telefone === p.telefone) || {};
+  document.getElementById('epart-id').value = p.id;
+  document.getElementById('epart-bolao-id').value = bolaoId;
+  document.getElementById('epart-valor-cota').value = bolao?.valor_cota_inteira || 0;
+  document.getElementById('epart-nome').textContent = cliente.nome_completo || cliente.apelido || p.telefone;
+  document.getElementById('epart-cotas').value = p.cotas;
+  document.getElementById('epart-valor').value = p.valor_total;
+  document.getElementById('epart-status').value = p.status_pagamento;
+  closeModal('modal-bolao-det');
+  openModal('modal-editar-part');
+}
+
+function atualizarValorEditPart() {
+  const cotas = parseInt(document.getElementById('epart-cotas').value) || 0;
+  const valorCota = parseFloat(document.getElementById('epart-valor-cota').value) || 0;
+  document.getElementById('epart-valor').value = (cotas * valorCota).toFixed(2);
+}
+
+async function salvarEdicaoPart() {
+  const id      = document.getElementById('epart-id').value;
+  const bolaoId = document.getElementById('epart-bolao-id').value;
+  const cotas   = parseInt(document.getElementById('epart-cotas').value) || 1;
+  const valor   = parseFloat(document.getElementById('epart-valor').value) || 0;
+  const status  = document.getElementById('epart-status').value;
+  const p = currentBolaoParts.find(x => x.id === id);
+  if (!p) return;
+
+  const updates = { cotas, valor_total: valor, status_pagamento: status };
+  if (status === 'pago' && !p.pago_em) updates.pago_em = new Date().toISOString();
+  if (status === 'pendente') updates.pago_em = null;
+
+  const { error } = await sb.from('participacoes').update(updates).eq('id', id);
+  if (error) { toast('Erro: ' + error.message, true); return; }
+
+  const bolao = allBoloes.find(b => b.id === bolaoId);
+  await reconciliarExtratoDebito(p.telefone, bolaoId, status, valor, bolao?.nome);
+
+  toast('Participação atualizada!');
+  closeModal('modal-editar-part');
   abrirBolao(bolaoId);
   loadDashboard();
 }
