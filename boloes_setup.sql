@@ -73,12 +73,11 @@ ALTER TABLE participacoes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE extrato       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE saques        ENABLE ROW LEVEL SECURITY;
 
--- Remove políticas abertas antigas, se existirem
+-- Remove políticas abertas antigas, se existirem (apenas das tabelas novas)
 DROP POLICY IF EXISTS "allow_all_participacoes" ON participacoes;
 DROP POLICY IF EXISTS "allow_all_extrato"       ON extrato;
 DROP POLICY IF EXISTS "allow_all_saques"        ON saques;
-DROP POLICY IF EXISTS "allow_all_boloes"        ON boloes;
-DROP POLICY IF EXISTS "allow_all_usuarios"      ON usuarios;
+-- NÃO mexemos em policies de boloes/usuarios (ver comentário acima)
 
 -- Apenas usuários autenticados (logados no app) podem ler/escrever
 CREATE POLICY "auth_only_participacoes" ON participacoes FOR ALL
