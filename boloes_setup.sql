@@ -112,3 +112,8 @@ SELECT
 FROM usuarios u
 LEFT JOIN extrato e ON e.telefone = u.telefone
 GROUP BY u.telefone, u.nome_completo, u.apelido;
+
+-- 8. Suporte a meia cota (ex: 0.5, 1.5, 2.5...)
+-- 'cotas' era INTEGER; passa a aceitar uma casa decimal.
+ALTER TABLE participacoes ALTER COLUMN cotas TYPE NUMERIC(6,1) USING cotas::numeric;
+ALTER TABLE participacoes ALTER COLUMN cotas SET DEFAULT 1;
