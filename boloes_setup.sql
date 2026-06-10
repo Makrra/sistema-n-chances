@@ -117,3 +117,6 @@ GROUP BY u.telefone, u.nome_completo, u.apelido;
 -- 'cotas' era INTEGER; passa a aceitar uma casa decimal.
 ALTER TABLE participacoes ALTER COLUMN cotas TYPE NUMERIC(6,1) USING cotas::numeric;
 ALTER TABLE participacoes ALTER COLUMN cotas SET DEFAULT 1;
+
+-- 9. Custo do bolão (controle interno de lucro)
+ALTER TABLE boloes ADD COLUMN IF NOT EXISTS custo NUMERIC(10,2) NOT NULL DEFAULT 0;

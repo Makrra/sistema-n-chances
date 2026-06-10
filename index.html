@@ -391,6 +391,10 @@ select.form-control option { background: var(--bg); }
       </div>
     </div>
     <div class="form-group">
+      <label class="form-label">Custo do Bolão (R$)</label>
+      <input class="form-control" id="nb-custo" type="number" step="0.01" placeholder="0.00">
+    </div>
+    <div class="form-group">
       <label class="form-label">Observação</label>
       <input class="form-control" id="nb-obs" placeholder="Opcional">
     </div>
@@ -469,6 +473,10 @@ select.form-control option { background: var(--bg); }
         <label class="form-label">Prêmio Ganho (R$)</label>
         <input class="form-control" id="eb-premio" type="number" step="0.01">
       </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Custo do Bolão (R$)</label>
+      <input class="form-control" id="eb-custo" type="number" step="0.01" placeholder="0.00">
     </div>
     <div class="form-group">
       <label class="form-label">Observação</label>
@@ -799,6 +807,7 @@ async function criarBolao() {
   const meiaCota     = parseFloat(document.getElementById('nb-meia-cota').value) || 0;
   const cotas        = parseInt(document.getElementById('nb-cotas').value) || 1;
   const cotasReservadas = parseFloat(document.getElementById('nb-cotas-reservadas').value) || 0;
+  const custo        = parseFloat(document.getElementById('nb-custo').value) || 0;
   const obs          = document.getElementById('nb-obs').value.trim();
   if (!nome) { toast('Informe o nome do bolão', true); return; }
   if (!concurso) { toast('Informe o número do concurso', true); return; }
@@ -809,21 +818,22 @@ async function criarBolao() {
     concurso: parseInt(concurso),
     data_sorteio: data,
     valor_cota_inteira: valor, valor_cota_meia: meiaCota, quantidade_cotas: cotas,
-    status: 'ABERTO', observacao: obs || null,
+    custo, status: 'ABERTO', observacao: obs || null,
   }).select().single();
   if (error) { toast('Erro: ' + error.message, true); return; }
   if (cotasReservadas > 0) {
-    await sb.from('participacoes').insert({
+    const { error: errPart } = await sb.from('participacoes').insert({
       bolao_id: novoBolao.id, telefone: TELEFONE_ORGANIZADOR,
       cotas: cotasReservadas, valor_total: 0,
       status_pagamento: 'pago', pago_em: new Date().toISOString(),
     });
+    if (errPart) toast('Bolão criado, mas falhou ao reservar cotas: ' + errPart.message, true);
   }
   toast('Bolão criado!');
   closeModal('modal-novo-bolao');
   loadBoloes();
   // limpar form
-  ['nb-nome','nb-concurso','nb-data','nb-valor','nb-meia-cota','nb-obs'].forEach(id => document.getElementById(id).value = '');
+  ['nb-nome','nb-concurso','nb-data','nb-valor','nb-meia-cota','nb-custo','nb-obs'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('nb-cotas').value = '1';
   document.getElementById('nb-cotas-reservadas').value = '0';
 }
@@ -846,6 +856,8 @@ async function abrirBolao(id) {
   currentBolaoParts = parts;
   const totalArrecadado = parts.filter(p=>p.status_pagamento==='pago').reduce((s,p)=>s+(p.valor_total||0),0);
   const totalPendente   = parts.filter(p=>p.status_pagamento==='pendente').reduce((s,p)=>s+(p.valor_total||0),0);
+  const custo = parseFloat(b.custo) || 0;
+  const lucro = totalArrecadado - custo;
 
   modal.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
@@ -855,10 +867,14 @@ async function abrirBolao(id) {
       </div>
       ${statusBadge(b.status)}
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
       <div class="stat-card"><div class="stat-val" style="font-size:1rem">${fmtMoeda(totalArrecadado)}</div><div class="stat-lbl">Arrecadado</div></div>
       <div class="stat-card"><div class="stat-val" style="font-size:1rem;color:var(--yellow)">${fmtMoeda(totalPendente)}</div><div class="stat-lbl">Pendente</div></div>
       <div class="stat-card"><div class="stat-val" style="font-size:1rem">${parts.length}</div><div class="stat-lbl">Participantes</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+      <div class="stat-card"><div class="stat-val" style="font-size:1rem">${fmtMoeda(custo)}</div><div class="stat-lbl">Custo do Bolão</div></div>
+      <div class="stat-card"><div class="stat-val" style="font-size:1rem;color:${lucro>=0?'var(--green)':'var(--red)'}">${fmtMoeda(lucro)}</div><div class="stat-lbl">Lucro</div></div>
     </div>
     ${b.status === 'SORTEADO' && b.premio_ganho ? `
     <div class="card" style="margin-bottom:16px;text-align:center">
@@ -1029,6 +1045,7 @@ function abrirEditarBolao(id) {
   document.getElementById('eb-meia-cota').value = b.valor_cota_meia || 0;
   document.getElementById('eb-cotas').value = b.quantidade_cotas || 1;
   document.getElementById('eb-premio').value = b.premio_ganho || 0;
+  document.getElementById('eb-custo').value = b.custo || 0;
   document.getElementById('eb-obs').value = b.observacao || '';
   closeModal('modal-bolao-det');
   openModal('modal-editar-bolao');
@@ -1045,6 +1062,7 @@ async function salvarEdicaoBolao() {
   const meiaCota    = parseFloat(document.getElementById('eb-meia-cota').value) || 0;
   const cotas       = parseInt(document.getElementById('eb-cotas').value) || 1;
   const premio      = parseFloat(document.getElementById('eb-premio').value) || 0;
+  const custo       = parseFloat(document.getElementById('eb-custo').value) || 0;
   const obs         = document.getElementById('eb-obs').value.trim();
   if (!nome) { toast('Informe o nome do bolão', true); return; }
   if (!concurso) { toast('Informe o número do concurso', true); return; }
@@ -1053,7 +1071,7 @@ async function salvarEdicaoBolao() {
     nome, loteria, tipo_sorteio: tipoSorteio,
     concurso: parseInt(concurso), data_sorteio: data,
     valor_cota_inteira: valor, valor_cota_meia: meiaCota, quantidade_cotas: cotas,
-    premio_ganho: premio, observacao: obs || null,
+    premio_ganho: premio, custo, observacao: obs || null,
   }).eq('id', id);
   if (error) { toast('Erro: ' + error.message, true); return; }
   toast('Bolão atualizado!');
