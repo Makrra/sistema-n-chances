@@ -120,3 +120,10 @@ ALTER TABLE participacoes ALTER COLUMN cotas SET DEFAULT 1;
 
 -- 9. Custo do bolão (controle interno de lucro)
 ALTER TABLE boloes ADD COLUMN IF NOT EXISTS custo NUMERIC(10,2) NOT NULL DEFAULT 0;
+
+-- 10. Forma de pagamento da participação.
+-- 'pix'   -> pagamento direto, registrado na participação, NÃO gera débito
+--            no extrato (não mexe no saldo do cliente).
+-- 'saldo' -> abatido do saldo/crédito do cliente, gera um lançamento de
+--            débito no extrato.
+ALTER TABLE participacoes ADD COLUMN IF NOT EXISTS forma_pagamento TEXT NOT NULL DEFAULT 'pix';

@@ -496,6 +496,7 @@ select.form-control option { background: var(--bg); }
     <input type="hidden" id="ap-telefone">
     <input type="hidden" id="ap-valor-cota">
     <input type="hidden" id="ap-valor-meia">
+    <input type="hidden" id="ap-organizador" value="0">
     <div class="form-group">
       <label class="form-label">Cliente</label>
       <input class="form-control" id="ap-busca" placeholder="Buscar por nome ou telefone..." oninput="filtrarApClientes()">
@@ -519,6 +520,16 @@ select.form-control option { background: var(--bg); }
         <option value="pago">Pago</option>
       </select>
     </div>
+    <div class="form-group">
+      <label class="form-label">Forma de Pagamento</label>
+      <select class="form-control" id="ap-forma-pagamento">
+        <option value="pix">Pix</option>
+        <option value="saldo">Saldo do cliente</option>
+      </select>
+    </div>
+    <div id="ap-cortesia-note" style="display:none;margin-bottom:10px;padding:8px 10px;border-radius:8px;background:rgba(253,203,110,.12);color:var(--yellow);font-size:.8rem;font-weight:600">
+      Cota de cortesia (Neydson): sem valor e sem débito no saldo, conta apenas como multiplicador no prêmio.
+    </div>
     <button class="btn btn-primary btn-block" onclick="adicionarParticipante()">Adicionar</button>
     <div style="height:10px"></div>
     <button class="btn btn-block" style="background:var(--border);color:var(--muted)" onclick="closeModal('modal-add-part')">Cancelar</button>
@@ -533,6 +544,7 @@ select.form-control option { background: var(--bg); }
     <input type="hidden" id="epart-bolao-id">
     <input type="hidden" id="epart-valor-cota">
     <input type="hidden" id="epart-valor-meia">
+    <input type="hidden" id="epart-organizador" value="0">
     <div class="form-group">
       <label class="form-label">Cliente</label>
       <div id="epart-nome" style="font-weight:600;padding:8px 0"></div>
@@ -553,6 +565,16 @@ select.form-control option { background: var(--bg); }
         <option value="pendente">Pendente</option>
         <option value="pago">Pago</option>
       </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Forma de Pagamento</label>
+      <select class="form-control" id="epart-forma-pagamento">
+        <option value="pix">Pix</option>
+        <option value="saldo">Saldo do cliente</option>
+      </select>
+    </div>
+    <div id="epart-cortesia-note" style="display:none;margin-bottom:10px;padding:8px 10px;border-radius:8px;background:rgba(253,203,110,.12);color:var(--yellow);font-size:.8rem;font-weight:600">
+      Cota de cortesia (Neydson): sem valor e sem débito no saldo, conta apenas como multiplicador no prêmio.
     </div>
     <button class="btn btn-primary btn-block" onclick="salvarEdicaoPart()">Salvar Alterações</button>
     <div style="height:10px"></div>
@@ -759,7 +781,7 @@ async function loadBoloes() {
   document.getElementById('boloes-list').innerHTML = '<div class="loading"><div class="spinner"></div>Carregando...</div>';
   const [boRes, partRes] = await Promise.all([
     sb.from('boloes').select('*').order('criado_em', {ascending: false}),
-    sb.from('participacoes').select('bolao_id,cotas,valor_total,status_pagamento'),
+    sb.from('participacoes').select('bolao_id,telefone,cotas,valor_total,status_pagamento'),
   ]);
   if (boRes.error) { toast('Erro ao carregar bolões', true); return; }
   allBoloes = boRes.data || [];
@@ -767,7 +789,8 @@ async function loadBoloes() {
   arrecadadoPorBolao = {};
   (partRes.data || []).forEach(p => {
     cotasOcupadas[p.bolao_id] = (cotasOcupadas[p.bolao_id] || 0) + (parseFloat(p.cotas) || 0);
-    if (p.status_pagamento === 'pago') {
+    // Cotas de cortesia do organizador não contam para o arrecadado/lucro
+    if (p.status_pagamento === 'pago' && p.telefone !== TELEFONE_ORGANIZADOR) {
       arrecadadoPorBolao[p.bolao_id] = (arrecadadoPorBolao[p.bolao_id] || 0) + (parseFloat(p.valor_total) || 0);
     }
   });
@@ -872,7 +895,8 @@ async function abrirBolao(id) {
   const b = boRes.data;
   const parts = partRes.data || [];
   currentBolaoParts = parts;
-  const totalArrecadado = parts.filter(p=>p.status_pagamento==='pago').reduce((s,p)=>s+(p.valor_total||0),0);
+  // Cotas de cortesia do organizador não contam para o arrecadado/lucro
+  const totalArrecadado = parts.filter(p=>p.status_pagamento==='pago' && p.telefone !== TELEFONE_ORGANIZADOR).reduce((s,p)=>s+(p.valor_total||0),0);
   const totalPendente   = parts.filter(p=>p.status_pagamento==='pendente').reduce((s,p)=>s+(p.valor_total||0),0);
   const custo = parseFloat(b.custo) || 0;
   const lucro = totalArrecadado - custo;
@@ -952,21 +976,29 @@ async function marcarPago(partId, bolaoId) {
   if (error) { toast('Erro: ' + error.message, true); return; }
   if (p) {
     const bolao = allBoloes.find(b => b.id === bolaoId);
-    await reconciliarExtratoDebito(p.telefone, bolaoId, 'pago', p.valor_total, bolao?.nome);
+    await reconciliarExtratoDebito(p.telefone, bolaoId, 'pago', p.valor_total, bolao?.nome, p.forma_pagamento || 'pix');
+    if (bolao?.status === 'SORTEADO' && parseFloat(bolao.premio_ganho) > 0) {
+      await distribuirPremio(bolaoId, parseFloat(bolao.premio_ganho));
+    }
   }
   toast('Pagamento confirmado!');
   abrirBolao(bolaoId);
+  loadBoloes();
   loadDashboard();
 }
 
-// Garante que o extrato reflita o status de pagamento atual da participação:
-// 'pago' -> existe um lançamento de débito com o valor correto;
-// 'pendente' -> nenhum lançamento de débito para esse bolão/cliente.
-async function reconciliarExtratoDebito(telefone, bolaoId, statusPagamento, valorTotal, bolaoNome) {
+// Garante que o extrato reflita o status/forma de pagamento atual da participação:
+// só gera débito no saldo do cliente quando o pagamento foi feito usando o
+// "saldo" interno dele; pagamento via Pix não mexe no saldo (é só registrado
+// na própria participação).
+// 'pago' + 'saldo' -> existe um lançamento de débito com o valor correto;
+// caso contrário -> nenhum lançamento de débito para esse bolão/cliente.
+async function reconciliarExtratoDebito(telefone, bolaoId, statusPagamento, valorTotal, bolaoNome, formaPagamento) {
   const { data: existentes } = await sb.from('extrato').select('id,valor')
     .eq('telefone', telefone).eq('bolao_id', bolaoId).eq('tipo', 'debito');
   const existente = (existentes || [])[0];
-  if (statusPagamento === 'pago') {
+  const deveDebitar = statusPagamento === 'pago' && formaPagamento === 'saldo';
+  if (deveDebitar) {
     if (existente) {
       if (Number(existente.valor) !== Number(valorTotal)) {
         await sb.from('extrato').update({ valor: valorTotal }).eq('id', existente.id);
@@ -1016,25 +1048,6 @@ async function marcarSorteado(id) {
       toast('Nenhum participante pago para receber o prêmio', true);
       return;
     }
-    const totalCotas = pagantes.reduce((s,p) => s + (p.cotas || 0), 0);
-    const bolao = allBoloes.find(b => b.id === id);
-    let somaDistribuida = 0;
-    const lancamentos = pagantes.map((p, idx) => {
-      let valor;
-      if (idx === pagantes.length - 1) {
-        valor = Math.round((premioTotal - somaDistribuida) * 100) / 100;
-      } else {
-        valor = Math.round(premioTotal * (p.cotas / totalCotas) * 100) / 100;
-        somaDistribuida += valor;
-      }
-      return {
-        telefone: p.telefone, tipo: 'premio', valor,
-        descricao: `Prêmio - ${bolao?.nome || 'Bolão'} (Concurso #${bolao?.concurso || '—'})`,
-        bolao_id: id,
-      };
-    });
-    const { error: errExt } = await sb.from('extrato').insert(lancamentos);
-    if (errExt) { toast('Erro ao lançar prêmios: ' + errExt.message, true); return; }
   }
 
   const { error } = await sb.from('boloes').update({
@@ -1042,10 +1055,49 @@ async function marcarSorteado(id) {
     premio_ganho: premiado ? premioTotal : 0,
   }).eq('id', id);
   if (error) { toast('Erro: ' + error.message, true); return; }
+
+  if (premiado) {
+    const errMsg = await distribuirPremio(id, premioTotal);
+    if (errMsg) { toast('Erro ao lançar prêmios: ' + errMsg, true); return; }
+  }
+
   toast(premiado ? 'Bolão premiado! Prêmios distribuídos no extrato.' : 'Bolão marcado como sorteado.');
   closeModal('modal-bolao-det');
   loadBoloes();
   loadDashboard();
+}
+
+// Recalcula e substitui (no extrato) os lançamentos de prêmio do bolão,
+// distribuindo proporcionalmente às cotas de cada participante pago
+// (cotas de cortesia do organizador também contam como multiplicador).
+// Retorna uma mensagem de erro (string) em caso de falha, ou undefined.
+async function distribuirPremio(bolaoId, premioTotal) {
+  await sb.from('extrato').delete().eq('bolao_id', bolaoId).eq('tipo', 'premio');
+  if (!premioTotal || premioTotal <= 0) return;
+
+  const { data: parts } = await sb.from('participacoes').select('*').eq('bolao_id', bolaoId);
+  const pagantes = (parts || []).filter(p => p.status_pagamento === 'pago');
+  const totalCotas = pagantes.reduce((s,p) => s + (parseFloat(p.cotas) || 0), 0);
+  if (!pagantes.length || totalCotas <= 0) return;
+
+  const bolao = allBoloes.find(b => b.id === bolaoId);
+  let somaDistribuida = 0;
+  const lancamentos = pagantes.map((p, idx) => {
+    let valor;
+    if (idx === pagantes.length - 1) {
+      valor = Math.round((premioTotal - somaDistribuida) * 100) / 100;
+    } else {
+      valor = Math.round(premioTotal * (parseFloat(p.cotas) / totalCotas) * 100) / 100;
+      somaDistribuida += valor;
+    }
+    return {
+      telefone: p.telefone, tipo: 'premio', valor,
+      descricao: `Prêmio - ${bolao?.nome || 'Bolão'} (Concurso #${bolao?.concurso || '—'})`,
+      bolao_id: bolaoId,
+    };
+  });
+  const { error } = await sb.from('extrato').insert(lancamentos);
+  if (error) return error.message;
 }
 
 // ============================================================
@@ -1145,15 +1197,35 @@ async function abrirAddPart(bolaoId) {
   document.getElementById('ap-valor-meia').value = bolao?.valor_cota_meia || 0;
   document.getElementById('ap-cotas').value = 1;
   document.getElementById('ap-status').value = 'pendente';
+  document.getElementById('ap-forma-pagamento').value = 'pix';
   const sel = document.getElementById('ap-selecionado');
   sel.style.display = 'none';
   sel.textContent = '';
+  setApOrganizadorUI(false);
   renderApClientes(allClientes);
   atualizarValorParticipante();
   openModal('modal-add-part');
 }
 
+// Cotas atribuídas ao organizador (Neydson) são sempre cortesia: sem valor,
+// status pago e sem débito no saldo - a UI reflete isso travando os campos.
+function setApOrganizadorUI(isOrganizador) {
+  document.getElementById('ap-organizador').value = isOrganizador ? '1' : '0';
+  document.getElementById('ap-cortesia-note').style.display = isOrganizador ? 'block' : 'none';
+  document.getElementById('ap-status').disabled = isOrganizador;
+  document.getElementById('ap-forma-pagamento').disabled = isOrganizador;
+  document.getElementById('ap-valor').disabled = isOrganizador;
+  if (isOrganizador) {
+    document.getElementById('ap-status').value = 'pago';
+    document.getElementById('ap-forma-pagamento').value = 'pix';
+  }
+}
+
 function atualizarValorParticipante() {
+  if (document.getElementById('ap-organizador').value === '1') {
+    document.getElementById('ap-valor').value = '0.00';
+    return;
+  }
   const cotas = parseFloat(document.getElementById('ap-cotas').value) || 0;
   const valorCota = document.getElementById('ap-valor-cota').value;
   const valorMeia = document.getElementById('ap-valor-meia').value;
@@ -1202,17 +1274,22 @@ function selecionarApCliente(tel) {
     sel.style.display = 'block';
   }
   filtrarApClientes();
+  setApOrganizadorUI(tel === TELEFONE_ORGANIZADOR);
+  atualizarValorParticipante();
 }
 
 async function adicionarParticipante() {
   const bolaoId = document.getElementById('ap-bolao-id').value;
   const tel     = document.getElementById('ap-telefone').value;
   if (!tel) { toast('Selecione um cliente', true); return; }
+  const isOrganizador = tel === TELEFONE_ORGANIZADOR;
   const cotas   = parseFloat(document.getElementById('ap-cotas').value) || 0;
-  const valor   = parseFloat(document.getElementById('ap-valor').value) || 0;
-  const status  = document.getElementById('ap-status').value;
+  let valor     = parseFloat(document.getElementById('ap-valor').value) || 0;
+  let status    = document.getElementById('ap-status').value;
+  let formaPagamento = document.getElementById('ap-forma-pagamento').value;
+  if (isOrganizador) { valor = 0; status = 'pago'; formaPagamento = 'pix'; }
   if (cotas <= 0) { toast('Informe a quantidade de cotas (mín. 0,5)', true); return; }
-  if (valor <= 0) { toast('Informe o valor total', true); return; }
+  if (!isOrganizador && valor <= 0) { toast('Informe o valor total', true); return; }
   const bolaoCheck = allBoloes.find(b => b.id === bolaoId);
   if (bolaoCheck?.quantidade_cotas) {
     const somaAtual = currentBolaoParts.reduce((s,p) => s + (parseFloat(p.cotas) || 0), 0);
@@ -1223,22 +1300,16 @@ async function adicionarParticipante() {
   }
   const { error } = await sb.from('participacoes').insert({
     bolao_id: bolaoId, telefone: tel, cotas, valor_total: valor,
-    status_pagamento: status,
+    status_pagamento: status, forma_pagamento: formaPagamento,
     pago_em: status === 'pago' ? new Date().toISOString() : null,
   });
   if (error) { toast('Erro: ' + error.message, true); return; }
-  if (status === 'pago') {
-    const bolao = allBoloes.find(b => b.id === bolaoId);
-    const cliente = allClientes.find(c => c.telefone === tel);
-    await sb.from('extrato').insert({
-      telefone: tel, tipo: 'debito', valor,
-      descricao: `Participação bolão ${bolao?.nome || bolaoId}`,
-      bolao_id: bolaoId,
-    });
-  }
+  const bolao = allBoloes.find(b => b.id === bolaoId);
+  await reconciliarExtratoDebito(tel, bolaoId, status, valor, bolao?.nome, formaPagamento);
   toast('Participante adicionado!');
   closeModal('modal-add-part');
   abrirBolao(bolaoId);
+  loadBoloes();
   loadDashboard();
 }
 
@@ -1250,19 +1321,36 @@ function abrirEditarPart(partId, bolaoId) {
   if (!p) return;
   const bolao = allBoloes.find(b => b.id === bolaoId);
   const cliente = allClientes.find(c => c.telefone === p.telefone) || {};
+  const isOrganizador = p.telefone === TELEFONE_ORGANIZADOR;
   document.getElementById('epart-id').value = p.id;
   document.getElementById('epart-bolao-id').value = bolaoId;
   document.getElementById('epart-valor-cota').value = bolao?.valor_cota_inteira || 0;
   document.getElementById('epart-valor-meia').value = bolao?.valor_cota_meia || 0;
   document.getElementById('epart-nome').textContent = cliente.nome_completo || cliente.apelido || p.telefone;
   document.getElementById('epart-cotas').value = p.cotas;
-  document.getElementById('epart-valor').value = p.valor_total;
-  document.getElementById('epart-status').value = p.status_pagamento;
+  document.getElementById('epart-valor').value = isOrganizador ? '0.00' : p.valor_total;
+  document.getElementById('epart-status').value = isOrganizador ? 'pago' : p.status_pagamento;
+  document.getElementById('epart-forma-pagamento').value = isOrganizador ? 'pix' : (p.forma_pagamento || 'pix');
+  setEpartOrganizadorUI(isOrganizador);
   closeModal('modal-bolao-det');
   openModal('modal-editar-part');
 }
 
+// Cotas atribuídas ao organizador (Neydson) são sempre cortesia: sem valor,
+// status pago e sem débito no saldo - a UI reflete isso travando os campos.
+function setEpartOrganizadorUI(isOrganizador) {
+  document.getElementById('epart-organizador').value = isOrganizador ? '1' : '0';
+  document.getElementById('epart-cortesia-note').style.display = isOrganizador ? 'block' : 'none';
+  document.getElementById('epart-status').disabled = isOrganizador;
+  document.getElementById('epart-forma-pagamento').disabled = isOrganizador;
+  document.getElementById('epart-valor').disabled = isOrganizador;
+}
+
 function atualizarValorEditPart() {
+  if (document.getElementById('epart-organizador').value === '1') {
+    document.getElementById('epart-valor').value = '0.00';
+    return;
+  }
   const cotas = parseFloat(document.getElementById('epart-cotas').value) || 0;
   const valorCota = document.getElementById('epart-valor-cota').value;
   const valorMeia = document.getElementById('epart-valor-meia').value;
@@ -1273,12 +1361,15 @@ async function salvarEdicaoPart() {
   const id      = document.getElementById('epart-id').value;
   const bolaoId = document.getElementById('epart-bolao-id').value;
   const cotas   = parseFloat(document.getElementById('epart-cotas').value) || 0;
-  const valor   = parseFloat(document.getElementById('epart-valor').value) || 0;
-  const status  = document.getElementById('epart-status').value;
+  const isOrganizador = document.getElementById('epart-organizador').value === '1';
+  let valor     = parseFloat(document.getElementById('epart-valor').value) || 0;
+  let status    = document.getElementById('epart-status').value;
+  let formaPagamento = document.getElementById('epart-forma-pagamento').value;
+  if (isOrganizador) { valor = 0; status = 'pago'; formaPagamento = 'pix'; }
   const p = currentBolaoParts.find(x => x.id === id);
   if (!p) return;
   if (cotas <= 0) { toast('Informe a quantidade de cotas (mín. 0,5)', true); return; }
-  if (valor <= 0) { toast('Informe o valor total', true); return; }
+  if (!isOrganizador && valor <= 0) { toast('Informe o valor total', true); return; }
   const bolaoCheck = allBoloes.find(b => b.id === bolaoId);
   if (bolaoCheck?.quantidade_cotas) {
     const somaOutros = currentBolaoParts.filter(x => x.id !== id).reduce((s,x) => s + (parseFloat(x.cotas) || 0), 0);
@@ -1288,7 +1379,7 @@ async function salvarEdicaoPart() {
     }
   }
 
-  const updates = { cotas, valor_total: valor, status_pagamento: status };
+  const updates = { cotas, valor_total: valor, status_pagamento: status, forma_pagamento: formaPagamento };
   if (status === 'pago' && !p.pago_em) updates.pago_em = new Date().toISOString();
   if (status === 'pendente') updates.pago_em = null;
 
@@ -1296,11 +1387,18 @@ async function salvarEdicaoPart() {
   if (error) { toast('Erro: ' + error.message, true); return; }
 
   const bolao = allBoloes.find(b => b.id === bolaoId);
-  await reconciliarExtratoDebito(p.telefone, bolaoId, status, valor, bolao?.nome);
+  await reconciliarExtratoDebito(p.telefone, bolaoId, status, valor, bolao?.nome, formaPagamento);
+
+  // Se o bolão já foi sorteado e premiado, redistribui o prêmio com as
+  // cotas/status atualizados (item 3: alteração de cotas reflete no prêmio).
+  if (bolao?.status === 'SORTEADO' && parseFloat(bolao.premio_ganho) > 0) {
+    await distribuirPremio(bolaoId, parseFloat(bolao.premio_ganho));
+  }
 
   toast('Participação atualizada!');
   closeModal('modal-editar-part');
   abrirBolao(bolaoId);
+  loadBoloes();
   loadDashboard();
 }
 
@@ -1325,6 +1423,12 @@ async function excluirParticipacao(partId, bolaoId) {
 
   const { error } = await sb.from('participacoes').delete().eq('id', partId);
   if (error) { toast('Erro: ' + error.message, true); return; }
+
+  // Se o bolão já foi sorteado e premiado, redistribui o prêmio sem este participante.
+  const bolao = allBoloes.find(b => b.id === bolaoId);
+  if (bolao?.status === 'SORTEADO' && parseFloat(bolao.premio_ganho) > 0) {
+    await distribuirPremio(bolaoId, parseFloat(bolao.premio_ganho));
+  }
 
   toast('Participante removido do bolão!');
   abrirBolao(bolaoId);
