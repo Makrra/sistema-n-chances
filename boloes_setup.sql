@@ -65,19 +65,20 @@ CREATE INDEX IF NOT EXISTS idx_extrato_telefone       ON extrato(telefone);
 CREATE INDEX IF NOT EXISTS idx_saques_status          ON saques(status);
 
 -- 6. RLS - exige usuário autenticado via Supabase Auth (login no app)
--- Aplicado apenas nas tabelas financeiras NOVAS (100% controladas por este app).
--- 'boloes' e 'usuarios' NÃO foram alteradas aqui de propósito: já existiam antes
--- deste projeto e podem ser usadas por outras integrações (ex: bot do WhatsApp/n8n)
--- com a anon key sem login. Avalie separadamente antes de restringi-las.
+-- Aplicado nas tabelas financeiras NOVAS e em 'boloes' (100% controladas por este app).
+-- 'usuarios' NÃO foi alterada aqui de propósito: é usada por um bot/automação (n8n)
+-- com a anon key sem login. Avalie separadamente antes de restringi-la.
 ALTER TABLE participacoes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE extrato       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE saques        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE boloes        ENABLE ROW LEVEL SECURITY;
 
 -- Remove políticas abertas antigas, se existirem (apenas das tabelas novas)
 DROP POLICY IF EXISTS "allow_all_participacoes" ON participacoes;
 DROP POLICY IF EXISTS "allow_all_extrato"       ON extrato;
 DROP POLICY IF EXISTS "allow_all_saques"        ON saques;
--- NÃO mexemos em policies de boloes/usuarios (ver comentário acima)
+DROP POLICY IF EXISTS "allow_all_boloes"        ON boloes;
+-- NÃO mexemos em policies de usuarios (ver comentário acima)
 
 -- Apenas usuários autenticados (logados no app) podem ler/escrever
 CREATE POLICY "auth_only_participacoes" ON participacoes FOR ALL
@@ -86,10 +87,16 @@ CREATE POLICY "auth_only_extrato" ON extrato FOR ALL
   USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "auth_only_saques" ON saques FOR ALL
   USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "auth_only_boloes" ON boloes FOR ALL
+  USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 
 -- 7. VIEW: saldo por cliente (soma do extrato)
+-- security_invoker = true: a view passa a respeitar a RLS de quem está
+-- consultando (e não a do dono da view). Sem isso, qualquer pessoa com a
+-- anon key conseguia ler o saldo de TODOS os clientes mesmo sem login,
+-- porque a view "ignorava" a RLS da tabela extrato.
 DROP VIEW IF EXISTS saldo_clientes;
-CREATE VIEW saldo_clientes AS
+CREATE VIEW saldo_clientes WITH (security_invoker = true) AS
 SELECT
   u.telefone,
   u.nome_completo,
