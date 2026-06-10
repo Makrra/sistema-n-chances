@@ -73,11 +73,16 @@ ALTER TABLE extrato       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE saques        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE boloes        ENABLE ROW LEVEL SECURITY;
 
--- Remove políticas abertas antigas, se existirem (apenas das tabelas novas)
+-- Remove políticas antigas, se existirem (abertas ou de execuções anteriores
+-- deste script), para o CREATE POLICY abaixo não dar erro de duplicidade
 DROP POLICY IF EXISTS "allow_all_participacoes" ON participacoes;
 DROP POLICY IF EXISTS "allow_all_extrato"       ON extrato;
 DROP POLICY IF EXISTS "allow_all_saques"        ON saques;
 DROP POLICY IF EXISTS "allow_all_boloes"        ON boloes;
+DROP POLICY IF EXISTS "auth_only_participacoes" ON participacoes;
+DROP POLICY IF EXISTS "auth_only_extrato"       ON extrato;
+DROP POLICY IF EXISTS "auth_only_saques"        ON saques;
+DROP POLICY IF EXISTS "auth_only_boloes"        ON boloes;
 -- NÃO mexemos em policies de usuarios (ver comentário acima)
 
 -- Apenas usuários autenticados (logados no app) podem ler/escrever
