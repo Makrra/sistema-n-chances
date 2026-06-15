@@ -282,7 +282,7 @@ select.form-control option { background: var(--bg); }
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
       <div class="stat-card"><div class="stat-val" id="caixa-gasto" style="font-size:1.1rem">R$ 0,00</div><div class="stat-lbl">Gasto em Jogos</div></div>
-      <div class="stat-card"><div class="stat-val" id="caixa-lucro" style="font-size:1.1rem">R$ 0,00</div><div class="stat-lbl">Lucro no Período</div></div>
+      <div class="stat-card"><div class="stat-val" id="caixa-recebido" style="font-size:1.1rem;color:var(--green)">R$ 0,00</div><div class="stat-lbl">Recebido no Período</div></div>
     </div>
     <div class="stat-card"><div class="stat-val" id="caixa-premios" style="font-size:1.1rem;color:var(--yellow)">R$ 0,00</div><div class="stat-lbl">Acumulado em Prêmios</div></div>
   </div>
@@ -784,7 +784,9 @@ async function loadDashboard() {
   if (!boloes.length) {
     container.innerHTML = '<div class="loading">Nenhum bolão cadastrado ainda.</div>';
   } else {
-    container.innerHTML = boloes.slice(0,5).map(b => `
+    // Bolões ABERTO sempre no topo, mantendo a ordem por criado_em dentro de cada grupo.
+    const ordenados = [...boloes].sort((a, b) => (a.status === 'ABERTO' ? 0 : 1) - (b.status === 'ABERTO' ? 0 : 1));
+    container.innerHTML = ordenados.slice(0,5).map(b => `
       <div class="card" onclick="abrirBolao('${b.id}')">
         <div class="card-header">
           <div>
@@ -797,7 +799,7 @@ async function loadDashboard() {
           <span>Concurso #${b.concurso || '—'}</span>
           <span>Cota: ${fmtMoeda(b.valor_cota_inteira)}</span>
           <span>Meia: ${fmtMoeda(b.valor_cota_meia)}</span>
-          <span>Participantes: ${participantesPorBolao[b.id] || 0}</span>
+          <span>Participantes: ${participantesPorBolao[b.id] || 0}/${b.quantidade_cotas || '—'}</span>
           ${b.status === 'SORTEADO' ? `<span style="color:var(--yellow)">Prêmio: ${fmtMoeda(b.premio_ganho)}</span>` : ''}
         </div>
       </div>
@@ -819,6 +821,9 @@ async function loadDashboard() {
 // selecionado, usando os bolões já carregados pelo dashboard.
 // Usa criado_em (sempre preenchido) como referência: é quando o custo do
 // bolão é de fato desembolsado, mesmo que o sorteio ainda não tenha ocorrido.
+// Gasto e Recebido são totais de caixa (não é lucro): somam, respectivamente,
+// todo o custo e todo o valor arrecadado dos bolões do período, sem subtração
+// entre eles.
 function renderCaixa() {
   const de  = document.getElementById('caixa-de').value;
   const ate = document.getElementById('caixa-ate').value;
@@ -828,18 +833,15 @@ function renderCaixa() {
     return dataRef && (!de || dataRef >= de) && (!ate || dataRef <= ate);
   });
 
-  let gasto = 0, lucro = 0, premios = 0;
+  let gasto = 0, recebido = 0, premios = 0;
   noPeriodo.forEach(b => {
-    const custo = parseFloat(b.custo) || 0;
-    gasto += custo;
-    lucro += (dashArrecadado[b.id] || 0) - custo;
+    gasto += parseFloat(b.custo) || 0;
+    recebido += dashArrecadado[b.id] || 0;
     if (b.status === 'SORTEADO') premios += parseFloat(b.premio_ganho) || 0;
   });
 
   document.getElementById('caixa-gasto').textContent = fmtMoeda(gasto);
-  const lucroEl = document.getElementById('caixa-lucro');
-  lucroEl.textContent = fmtMoeda(lucro);
-  lucroEl.style.color = lucro >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('caixa-recebido').textContent = fmtMoeda(recebido);
   document.getElementById('caixa-premios').textContent = fmtMoeda(premios);
 }
 
