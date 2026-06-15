@@ -130,3 +130,9 @@ ALTER TABLE participacoes ADD COLUMN IF NOT EXISTS forma_pagamento TEXT NOT NULL
 
 -- 11. E-mail do cliente (cadastro de novos clientes pelo app)
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT;
+
+-- 12. Comprovante WhatsApp: premiação estimada, jogos do bolão e posição do
+-- participante na lista de cotistas
+ALTER TABLE boloes ADD COLUMN IF NOT EXISTS premio_estimado TEXT;
+ALTER TABLE boloes ADD COLUMN IF NOT EXISTS jogos_descricao TEXT;
+ALTER TABLE participacoes ADD COLUMN IF NOT EXISTS posicao INTEGER;

@@ -118,8 +118,9 @@ body {
 .form-control {
   width: 100%; background: var(--bg); border: 1px solid var(--border);
   border-radius: 8px; padding: 10px 12px; color: var(--text);
-  font-size: 0.9rem; transition: border-color .2s;
+  font-size: 0.9rem; font-family: inherit; transition: border-color .2s;
 }
+textarea.form-control { resize: vertical; }
 .form-control:focus { outline: none; border-color: var(--accent); }
 select.form-control option { background: var(--bg); }
 /* MODAL */
@@ -410,6 +411,14 @@ select.form-control option { background: var(--bg); }
       <input class="form-control" id="nb-custo" type="number" step="0.01" placeholder="0.00">
     </div>
     <div class="form-group">
+      <label class="form-label">Premiação Estimada</label>
+      <input class="form-control" id="nb-premio-estimado" placeholder="Ex: 10M, 100k, 1M">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Jogos do Bolão</label>
+      <textarea class="form-control" id="nb-jogos-descricao" rows="3" placeholder="Ex:&#10;10 jogos de 15 números&#10;3 jogos de 16 números"></textarea>
+    </div>
+    <div class="form-group">
       <label class="form-label">Observação</label>
       <input class="form-control" id="nb-obs" placeholder="Opcional">
     </div>
@@ -695,6 +704,21 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // vincular automaticamente as cotas reservadas ao criar um bolão
 const TELEFONE_ORGANIZADOR = '558499119370';
 
+// Labels usados no comprovante de WhatsApp enviado ao participante
+const LOTERIA_LABEL = {
+  'mega-sena':  '🟢 MEGA-SENA',
+  'lotofacil':  '🟣 LOTOFÁCIL',
+  'quina':      '🔵 QUINA',
+  'lotomania':  '🟠 LOTOMANIA',
+  'dupla-sena': '🔴 DUPLA SENA',
+  'timemania':  '🟡 TIMEMANIA',
+  'outro':      '⚪ SORTEIO',
+};
+const TIPO_SORTEIO_LABEL = {
+  acumulado: 'ACUMULADO', simples: 'SIMPLES', surpresinha: 'SURPRESINHA',
+  teimosinha: 'TEIMOSINHA', especial: 'ESPECIAL',
+};
+
 // ============================================================
 // STATE
 // ============================================================
@@ -750,6 +774,32 @@ function toast(msg, error = false) {
 // ============================================================
 const fmtMoeda = v => 'R$ ' + parseFloat(v||0).toFixed(2).replace('.', ',');
 const fmtData  = d => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+const fmtDataExtenso = d => {
+  if (!d) return '—';
+  const date = new Date(d + 'T00:00:00');
+  return `${date.toLocaleDateString('pt-BR')} (${date.toLocaleDateString('pt-BR', { weekday: 'long' })})`;
+};
+
+function descreverCotas(cotas) {
+  if (cotas === 1) return '1 cota INTEIRA';
+  if (cotas === 0.5) return '1 cota MEIA';
+  if (Number.isInteger(cotas)) return `${cotas} cotas INTEIRAS`;
+  return `${cotas} cotas`;
+}
+
+// Monta a mensagem de comprovante enviada ao participante via WhatsApp
+function montarMensagemComprovante(bolao, cotas, posicao, totalCotistas) {
+  const loteriaLabel = LOTERIA_LABEL[bolao.loteria] || `⚪ ${(bolao.loteria||'').toUpperCase()}`;
+  const tipoLabel = TIPO_SORTEIO_LABEL[bolao.tipo_sorteio] || (bolao.tipo_sorteio||'').toUpperCase();
+  const jogos = (bolao.jogos_descricao||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>`> ${l}`).join('\n');
+  return `Estou enviando essa mensagem como prova que você adquiriu junto a Neydson Medeiros:\n\n`
+    + `${descreverCotas(cotas)} do BOLÃO abaixo: \n\n`
+    + `${loteriaLabel} ${tipoLabel} onde você estará concorrendo a uma premiação de ${bolao.premio_estimado || '—'} no sorteio do concurso ${bolao.concurso}.`
+    + (jogos ? ` Com os seguintes jogos:\n\n${jogos}\n\n` : '\n\n')
+    + `O sorteio ocorrerá no dia ${fmtDataExtenso(bolao.data_sorteio)}. Estamos em ${totalCotistas} cotistas.\n\n`
+    + `Posição Lista: ${posicao}\n\n`
+    + `> Obs.: A premiação é dividida entre todos os cotistas.`;
+}
 const initials = n => (n||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 
 // Calcula o valor de N cotas (aceita meia cota, ex: 1.5) somando o preço
@@ -947,6 +997,8 @@ async function criarBolao() {
   const cotas        = parseInt(document.getElementById('nb-cotas').value) || 1;
   const cotasReservadas = parseFloat(document.getElementById('nb-cotas-reservadas').value) || 0;
   const custo        = parseFloat(document.getElementById('nb-custo').value) || 0;
+  const premioEstimado = document.getElementById('nb-premio-estimado').value.trim();
+  const jogosDescricao = document.getElementById('nb-jogos-descricao').value.trim();
   const obs          = document.getElementById('nb-obs').value.trim();
   if (!nome) { toast('Informe o nome do bolão', true); return; }
   if (!concurso) { toast('Informe o número do concurso', true); return; }
@@ -958,6 +1010,7 @@ async function criarBolao() {
     data_sorteio: data,
     valor_cota_inteira: valor, valor_cota_meia: meiaCota, quantidade_cotas: cotas,
     custo, status: 'ABERTO', observacao: obs || null,
+    premio_estimado: premioEstimado || null, jogos_descricao: jogosDescricao || null,
   }).select().single();
   if (error) { toast('Erro: ' + error.message, true); return; }
   if (cotasReservadas > 0) {
@@ -965,6 +1018,7 @@ async function criarBolao() {
       bolao_id: novoBolao.id, telefone: TELEFONE_ORGANIZADOR,
       cotas: cotasReservadas, valor_total: 0,
       status_pagamento: 'pago', pago_em: new Date().toISOString(),
+      posicao: 1,
     });
     if (errPart) toast('Bolão criado, mas falhou ao reservar cotas: ' + errPart.message, true);
   }
@@ -972,7 +1026,7 @@ async function criarBolao() {
   closeModal('modal-novo-bolao');
   loadBoloes();
   // limpar form
-  ['nb-nome','nb-concurso','nb-data','nb-valor','nb-meia-cota','nb-custo','nb-obs'].forEach(id => document.getElementById(id).value = '');
+  ['nb-nome','nb-concurso','nb-data','nb-valor','nb-meia-cota','nb-custo','nb-premio-estimado','nb-jogos-descricao','nb-obs'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('nb-cotas').value = '1';
   document.getElementById('nb-cotas-reservadas').value = '0';
 }
@@ -1396,10 +1450,13 @@ async function adicionarParticipante() {
       return;
     }
   }
+  const maxPosicao = currentBolaoParts.reduce((m,p) => Math.max(m, p.posicao || 0), 1);
+  const posicao = maxPosicao + 1;
   const { error } = await sb.from('participacoes').insert({
     bolao_id: bolaoId, telefone: tel, cotas, valor_total: valor,
     status_pagamento: status, forma_pagamento: formaPagamento,
     pago_em: status === 'pago' ? new Date().toISOString() : null,
+    posicao,
   });
   if (error) { toast('Erro: ' + error.message, true); return; }
   const bolao = allBoloes.find(b => b.id === bolaoId);
