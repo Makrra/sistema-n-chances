@@ -560,6 +560,19 @@ select.form-control option { background: var(--bg); }
   </div>
 </div>
 
+<!-- Modal: Comprovante WhatsApp (após adicionar participante) -->
+<div class="modal-overlay" id="modal-comprovante">
+  <div class="modal">
+    <div class="modal-title">Participante Adicionado!</div>
+    <div style="font-size:.85rem;color:var(--muted);margin-bottom:16px">
+      Envie o comprovante de compra para <strong id="comp-nome" style="color:var(--text)"></strong> via WhatsApp.
+    </div>
+    <a id="comp-link" class="btn btn-block" style="background:#25D366;color:#fff;text-decoration:none;display:block;text-align:center" target="_blank" onclick="fecharComprovante()">Abrir WhatsApp com o Comprovante</a>
+    <div style="height:10px"></div>
+    <button class="btn btn-block" style="background:var(--border);color:var(--muted)" onclick="fecharComprovante()">Fechar</button>
+  </div>
+</div>
+
 <!-- Modal: Editar Participação -->
 <div class="modal-overlay" id="modal-editar-part">
   <div class="modal">
@@ -727,6 +740,7 @@ let allBoloes   = [];
 let currentBolaoFilter = 'todos';
 let currentSaquesFilter = 'pendente';
 let currentBolaoParts = [];
+let comprovanteBolaoId = null; // bolão a recarregar após fechar modal-comprovante
 let cotasOcupadas = {};      // bolao_id -> soma de cotas (reservadas + vendidas)
 let arrecadadoPorBolao = {}; // bolao_id -> soma de valor_total das participações pagas
 let dashBoloes = [];          // boloes carregados no dashboard (p/ recálculo do caixa)
@@ -797,8 +811,14 @@ function montarMensagemComprovante(bolao, cotas, posicao, totalCotistas) {
     + `${loteriaLabel} ${tipoLabel} onde você estará concorrendo a uma premiação de ${bolao.premio_estimado || '—'} no sorteio do concurso ${bolao.concurso}.`
     + (jogos ? ` Com os seguintes jogos:\n\n${jogos}\n\n` : '\n\n')
     + `O sorteio ocorrerá no dia ${fmtDataExtenso(bolao.data_sorteio)}. Estamos em ${totalCotistas} cotistas.\n\n`
-    + `Posição Lista: ${posicao}\n\n`
+    + `Posição Lista: ${posicao || '—'}\n\n`
     + `> Obs.: A premiação é dividida entre todos os cotistas.`;
+}
+
+// Link que abre a conversa do participante no WhatsApp já com o comprovante pronto
+function linkComprovanteWhatsApp(bolao, participacao, totalCotistas) {
+  const mensagem = montarMensagemComprovante(bolao, parseFloat(participacao.cotas), participacao.posicao, totalCotistas);
+  return `https://wa.me/${participacao.telefone}?text=${encodeURIComponent(mensagem)}`;
 }
 const initials = n => (n||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 
@@ -1100,6 +1120,9 @@ async function abrirBolao(id) {
               <div style="display:flex;gap:4px">
                 ${p.status_pagamento==='pendente'
                   ? `<button class="btn btn-sm btn-success" style="font-size:.65rem;padding:4px 8px" onclick="marcarPago('${p.id}','${b.id}')">Marcar Pago</button>`
+                  : ''}
+                ${p.telefone !== TELEFONE_ORGANIZADOR
+                  ? `<a class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:#25D366;color:#fff;text-decoration:none" href="${linkComprovanteWhatsApp(b, p, parts.length)}" target="_blank">Comprovante</a>`
                   : ''}
                 <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--accent2);color:#74b9ff" onclick="abrirEditarPart('${p.id}','${b.id}')">Editar</button>
                 <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--red);color:#fff" onclick="excluirParticipacao('${p.id}','${b.id}')">Excluir</button>
@@ -1463,9 +1486,28 @@ async function adicionarParticipante() {
   await reconciliarExtratoDebito(tel, bolaoId, status, valor, bolao?.nome, formaPagamento);
   toast('Participante adicionado!');
   closeModal('modal-add-part');
-  abrirBolao(bolaoId);
-  loadBoloes();
-  loadDashboard();
+  if (isOrganizador) {
+    abrirBolao(bolaoId);
+    loadBoloes();
+    loadDashboard();
+  } else {
+    const totalCotistas = currentBolaoParts.length + 1;
+    const nomeCliente = (allClientes.find(c=>c.telefone===tel)||{}).apelido || tel;
+    document.getElementById('comp-nome').textContent = nomeCliente;
+    document.getElementById('comp-link').href = linkComprovanteWhatsApp(bolao, { telefone: tel, cotas, posicao }, totalCotistas);
+    comprovanteBolaoId = bolaoId;
+    openModal('modal-comprovante');
+  }
+}
+
+function fecharComprovante() {
+  closeModal('modal-comprovante');
+  if (comprovanteBolaoId) {
+    abrirBolao(comprovanteBolaoId);
+    loadBoloes();
+    loadDashboard();
+    comprovanteBolaoId = null;
+  }
 }
 
 // ============================================================
