@@ -127,3 +127,6 @@ ALTER TABLE boloes ADD COLUMN IF NOT EXISTS custo NUMERIC(10,2) NOT NULL DEFAULT
 -- 'saldo' -> abatido do saldo/crédito do cliente, gera um lançamento de
 --            débito no extrato.
 ALTER TABLE participacoes ADD COLUMN IF NOT EXISTS forma_pagamento TEXT NOT NULL DEFAULT 'pix';
+
+-- 11. E-mail do cliente (cadastro de novos clientes pelo app)
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT;

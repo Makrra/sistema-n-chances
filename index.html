@@ -308,6 +308,7 @@ select.form-control option { background: var(--bg); }
     <input type="text" id="busca-cliente" placeholder="Buscar cliente..." oninput="filterClientes()">
   </div>
   <div id="clientes-list"></div>
+  <button class="fab" onclick="abrirNovoCliente()">+</button>
 </div>
 
 <!-- ======= PAGE: SAQUES ======= -->
@@ -651,6 +652,32 @@ select.form-control option { background: var(--bg); }
     <button class="btn btn-primary btn-block" onclick="solicitarSaque()">Solicitar</button>
     <div style="height:10px"></div>
     <button class="btn btn-block" style="background:var(--border);color:var(--muted)" onclick="closeModal('modal-saque')">Cancelar</button>
+  </div>
+</div>
+
+<!-- Modal: Novo Cliente -->
+<div class="modal-overlay" id="modal-novo-cliente">
+  <div class="modal">
+    <div class="modal-title">Novo Cliente</div>
+    <div class="form-group">
+      <label class="form-label">Nome Completo</label>
+      <input class="form-control" id="nc-nome" placeholder="Ex: João da Silva">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Apelido</label>
+      <input class="form-control" id="nc-apelido" placeholder="Opcional">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Telefone</label>
+      <input class="form-control" id="nc-telefone" placeholder="Ex: 5584999999999 (DDI+DDD+número)">
+    </div>
+    <div class="form-group">
+      <label class="form-label">E-mail</label>
+      <input class="form-control" id="nc-email" type="email" placeholder="Opcional">
+    </div>
+    <button class="btn btn-primary btn-block" onclick="criarCliente()">Cadastrar</button>
+    <div style="height:10px"></div>
+    <button class="btn btn-block" style="background:var(--border);color:var(--muted)" onclick="closeModal('modal-novo-cliente')">Cancelar</button>
   </div>
 </div>
 
@@ -1557,6 +1584,30 @@ async function renderClientes(list) {
   }).join('');
 }
 
+function abrirNovoCliente() {
+  document.getElementById('nc-nome').value = '';
+  document.getElementById('nc-apelido').value = '';
+  document.getElementById('nc-telefone').value = '';
+  document.getElementById('nc-email').value = '';
+  openModal('modal-novo-cliente');
+}
+
+async function criarCliente() {
+  const nomeCompleto = document.getElementById('nc-nome').value.trim();
+  const apelido      = document.getElementById('nc-apelido').value.trim();
+  const telefone     = document.getElementById('nc-telefone').value.replace(/\D/g, '');
+  const email        = document.getElementById('nc-email').value.trim();
+  if (!nomeCompleto) { toast('Informe o nome completo', true); return; }
+  if (!telefone)     { toast('Informe o telefone', true); return; }
+  const { error } = await sb.from('usuarios').insert({
+    telefone, nome_completo: nomeCompleto, apelido: apelido || null, email: email || null,
+  });
+  if (error) { toast('Erro: ' + error.message, true); return; }
+  toast('Cliente cadastrado!');
+  closeModal('modal-novo-cliente');
+  loadClientes();
+}
+
 // ============================================================
 // EXTRATO
 // ============================================================
@@ -1564,6 +1615,9 @@ async function abrirExtrato(telefone, nome) {
   const modal = document.getElementById('modal-extrato-content');
   modal.innerHTML = '<div class="loading"><div class="spinner"></div>Carregando...</div>';
   openModal('modal-extrato');
+
+  const cliente = allClientes.find(c => c.telefone === telefone) || {};
+  const nomeCompleto = cliente.nome_completo || '';
 
   const [extratoRes, saldoRes, partsRes] = await Promise.all([
     sb.from('extrato').select('*').eq('telefone', telefone).order('criado_em', {ascending: false}).limit(50),
@@ -1597,8 +1651,11 @@ async function abrirExtrato(telefone, nome) {
   const positivos = ['credito','premio'];
 
   modal.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <div class="modal-title">${nome}</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+      <div>
+        <div class="modal-title">${nome}</div>
+        ${nomeCompleto && nomeCompleto !== nome ? `<div style="font-size:.8rem;color:var(--muted);margin-top:2px">${nomeCompleto}</div>` : ''}
+      </div>
       <button onclick="closeModal('modal-extrato')" style="background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer">×</button>
     </div>
     <div class="card" style="margin-bottom:16px;text-align:center">
