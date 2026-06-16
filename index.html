@@ -853,7 +853,7 @@ function statusBadge(s) {
 async function loadDashboard() {
   const [boloesRes, partRes, saquesRes] = await Promise.all([
     sb.from('boloes').select('*').order('criado_em', {ascending: false}),
-    sb.from('participacoes').select('bolao_id,telefone,valor_total,status_pagamento'),
+    sb.from('participacoes').select('bolao_id,telefone,cotas,valor_total,status_pagamento'),
     sb.from('saques').select('*').eq('status','pendente'),
   ]);
   const boloes = boloesRes.data || [];
@@ -867,9 +867,11 @@ async function loadDashboard() {
   document.getElementById('stat-saques').textContent    = saques.length;
 
   const participantesPorBolao = {};
+  const cotasOcupadasDash = {};
   const arrecadadoPorBolaoDash = {};
   allParts.forEach(p => {
     participantesPorBolao[p.bolao_id] = (participantesPorBolao[p.bolao_id] || 0) + 1;
+    cotasOcupadasDash[p.bolao_id] = (cotasOcupadasDash[p.bolao_id] || 0) + (parseFloat(p.cotas) || 0);
     // Cotas de cortesia do organizador não contam como arrecadado
     if (p.status_pagamento === 'pago' && p.telefone !== TELEFONE_ORGANIZADOR) {
       arrecadadoPorBolaoDash[p.bolao_id] = (arrecadadoPorBolaoDash[p.bolao_id] || 0) + (parseFloat(p.valor_total) || 0);
@@ -897,7 +899,7 @@ async function loadDashboard() {
           <span>Concurso #${b.concurso || '—'}</span>
           <span>Cota: ${fmtMoeda(b.valor_cota_inteira)}</span>
           <span>Meia: ${fmtMoeda(b.valor_cota_meia)}</span>
-          <span>Participantes: ${participantesPorBolao[b.id] || 0}/${b.quantidade_cotas || '—'}</span>
+          <span>Cotas: ${cotasOcupadasDash[b.id] || 0}/${b.quantidade_cotas || '—'}</span>
           ${b.status === 'SORTEADO' ? `<span style="color:var(--yellow)">Prêmio: ${fmtMoeda(b.premio_ganho)}</span>` : ''}
         </div>
       </div>
@@ -1087,7 +1089,7 @@ async function abrirBolao(id) {
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
       <div class="stat-card"><div class="stat-val" style="font-size:1rem">${fmtMoeda(totalArrecadado)}</div><div class="stat-lbl">Arrecadado</div></div>
       <div class="stat-card"><div class="stat-val" style="font-size:1rem;color:var(--yellow)">${fmtMoeda(totalPendente)}</div><div class="stat-lbl">Pendente</div></div>
-      <div class="stat-card"><div class="stat-val" style="font-size:1rem">${parts.length}</div><div class="stat-lbl">Participantes</div></div>
+      <div class="stat-card"><div class="stat-val" style="font-size:1rem">${parts.reduce((s,p) => s+(parseFloat(p.cotas)||0), 0)}</div><div class="stat-lbl">Cotas</div></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
       <div class="stat-card"><div class="stat-val" style="font-size:1rem">${fmtMoeda(custo)}</div><div class="stat-lbl">Custo do Bolão</div></div>
