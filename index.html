@@ -676,6 +676,33 @@ select.form-control option { background: var(--bg); }
   </div>
 </div>
 
+<!-- Modal: Editar Cliente -->
+<div class="modal-overlay" id="modal-editar-cliente">
+  <div class="modal">
+    <div class="modal-title">Editar Cliente</div>
+    <input type="hidden" id="ec-telefone-original">
+    <div class="form-group">
+      <label class="form-label">Nome Completo</label>
+      <input class="form-control" id="ec-nome" placeholder="Ex: João da Silva">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Apelido</label>
+      <input class="form-control" id="ec-apelido" placeholder="Opcional">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Telefone</label>
+      <input class="form-control" id="ec-telefone" placeholder="Ex: 5584999999999 (DDI+DDD+número)">
+    </div>
+    <div class="form-group">
+      <label class="form-label">E-mail</label>
+      <input class="form-control" id="ec-email" type="email" placeholder="Opcional">
+    </div>
+    <button class="btn btn-primary btn-block" onclick="salvarEdicaoCliente()">Salvar</button>
+    <div style="height:10px"></div>
+    <button class="btn btn-block" style="background:var(--border);color:var(--muted)" onclick="closeModal('modal-editar-cliente')">Cancelar</button>
+  </div>
+</div>
+
 <!-- Modal: Novo Cliente -->
 <div class="modal-overlay" id="modal-novo-cliente">
   <div class="modal">
@@ -1149,18 +1176,51 @@ async function updateBolaoStatus(id, status) {
   loadDashboard();
 }
 
+// Exibe prompt para o usuário confirmar quanto do saldo usar.
+// Retorna { formaPagamento, valorSaldoUsado } ou null se cancelado.
+async function resolverPagamentoSaldo(tel, valor) {
+  const { data: saldoData } = await sb.from('saldo_clientes').select('saldo').eq('telefone', tel).single();
+  const saldoDisponivel = parseFloat(saldoData?.saldo) || 0;
+  if (saldoDisponivel <= 0) {
+    toast(`Saldo insuficiente (${fmtMoeda(saldoDisponivel)}). Altere para Pix.`, true);
+    return null;
+  }
+  const nomeCliente = (allClientes.find(c => c.telefone === tel) || {}).apelido || tel;
+  const sugerido = Math.min(saldoDisponivel, valor).toFixed(2);
+  const input = prompt(
+    `Saldo de ${nomeCliente}: ${fmtMoeda(saldoDisponivel)}\nTotal da cota: ${fmtMoeda(valor)}\n\nQuanto usar do saldo?`,
+    sugerido
+  );
+  if (input === null) return null;
+  const digitado = parseFloat((input || '0').replace(',', '.'));
+  if (isNaN(digitado) || digitado < 0) { toast('Valor inválido.', true); return null; }
+  if (digitado > saldoDisponivel + 0.005) { toast(`Valor acima do saldo disponível (${fmtMoeda(saldoDisponivel)}).`, true); return null; }
+  if (digitado > valor + 0.005) { toast(`Valor acima do total da cota (${fmtMoeda(valor)}).`, true); return null; }
+  let formaPagamento = 'saldo';
+  let valorSaldoUsado = Math.min(digitado, valor);
+  if (valorSaldoUsado < 0.005) { formaPagamento = 'pix'; valorSaldoUsado = 0; }
+  else if (valorSaldoUsado < valor - 0.005) { formaPagamento = 'misto'; }
+  return { formaPagamento, valorSaldoUsado };
+}
+
 async function marcarPago(partId, bolaoId) {
   const p = currentBolaoParts.find(x => x.id === partId);
-  const { error } = await sb.from('participacoes').update({
-    status_pagamento: 'pago', pago_em: new Date().toISOString()
-  }).eq('id', partId);
+  if (!p) return;
+  let formaPagamento = p.forma_pagamento || 'pix';
+  let valorSaldoUsado = parseFloat(p.valor_saldo_usado) || 0;
+  if (formaPagamento === 'saldo') {
+    const res = await resolverPagamentoSaldo(p.telefone, p.valor_total);
+    if (res === null) return;
+    ({ formaPagamento, valorSaldoUsado } = res);
+  }
+  const updates = { status_pagamento: 'pago', pago_em: new Date().toISOString(),
+    forma_pagamento: formaPagamento, valor_saldo_usado: valorSaldoUsado };
+  const { error } = await sb.from('participacoes').update(updates).eq('id', partId);
   if (error) { toast('Erro: ' + error.message, true); return; }
-  if (p) {
-    const bolao = allBoloes.find(b => b.id === bolaoId);
-    await reconciliarExtratoDebito(p.telefone, bolaoId, 'pago', p.valor_total, bolao?.nome, p.forma_pagamento || 'pix');
-    if (bolao?.status === 'SORTEADO' && parseFloat(bolao.premio_ganho) > 0) {
-      await distribuirPremio(bolaoId, parseFloat(bolao.premio_ganho));
-    }
+  const bolao = allBoloes.find(b => b.id === bolaoId);
+  await reconciliarExtratoDebito(p.telefone, bolaoId, 'pago', p.valor_total, bolao?.nome, formaPagamento, valorSaldoUsado);
+  if (bolao?.status === 'SORTEADO' && parseFloat(bolao.premio_ganho) > 0) {
+    await distribuirPremio(bolaoId, parseFloat(bolao.premio_ganho));
   }
   toast('Pagamento confirmado!');
   abrirBolao(bolaoId);
@@ -1482,30 +1542,9 @@ async function adicionarParticipante() {
   }
   let valorSaldoUsado = 0;
   if (!isOrganizador && formaPagamento === 'saldo' && status === 'pago') {
-    const { data: saldoData } = await sb.from('saldo_clientes').select('saldo').eq('telefone', tel).single();
-    const saldoDisponivel = parseFloat(saldoData?.saldo) || 0;
-    if (saldoDisponivel <= 0) {
-      toast(`Saldo insuficiente (${fmtMoeda(saldoDisponivel)}). Altere para Pix.`, true);
-      return;
-    }
-    const nomeCliente = (allClientes.find(c => c.telefone === tel) || {}).apelido || tel;
-    const sugerido = Math.min(saldoDisponivel, valor).toFixed(2);
-    const input = prompt(
-      `Saldo de ${nomeCliente}: ${fmtMoeda(saldoDisponivel)}\nTotal da cota: ${fmtMoeda(valor)}\n\nQuanto usar do saldo?`,
-      sugerido
-    );
-    if (input === null) return;
-    const digitado = parseFloat((input || '0').replace(',', '.'));
-    if (isNaN(digitado) || digitado < 0) { toast('Valor inválido.', true); return; }
-    if (digitado > saldoDisponivel + 0.005) { toast(`Valor acima do saldo disponível (${fmtMoeda(saldoDisponivel)}).`, true); return; }
-    if (digitado > valor + 0.005) { toast(`Valor acima do total da cota (${fmtMoeda(valor)}).`, true); return; }
-    valorSaldoUsado = Math.min(digitado, valor);
-    if (valorSaldoUsado < 0.005) {
-      formaPagamento = 'pix';
-      valorSaldoUsado = 0;
-    } else if (valorSaldoUsado < valor - 0.005) {
-      formaPagamento = 'misto';
-    }
+    const res = await resolverPagamentoSaldo(tel, valor);
+    if (res === null) return;
+    ({ formaPagamento, valorSaldoUsado } = res);
   }
   const maxPosicao = currentBolaoParts.reduce((m,p) => Math.max(m, p.posicao || 0), 1);
   const posicao = maxPosicao + 1;
@@ -1714,7 +1753,11 @@ async function renderClientes(list) {
               <div class="item-detail">${c.telefone}</div>
             </div>
           </div>
-          <div class="${saldoCls}">${fmtMoeda(saldo)}</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="${saldoCls}">${fmtMoeda(saldo)}</div>
+            <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--accent2);color:#74b9ff;white-space:nowrap"
+              onclick="event.stopPropagation();abrirEditarCliente('${c.telefone}')">Editar</button>
+          </div>
         </div>
       </div>`;
   }).join('');
@@ -1741,6 +1784,35 @@ async function criarCliente() {
   if (error) { toast('Erro: ' + error.message, true); return; }
   toast('Cliente cadastrado!');
   closeModal('modal-novo-cliente');
+  loadClientes();
+}
+
+function abrirEditarCliente(telefone) {
+  const c = allClientes.find(x => x.telefone === telefone);
+  if (!c) return;
+  document.getElementById('ec-telefone-original').value = telefone;
+  document.getElementById('ec-nome').value = c.nome_completo || '';
+  document.getElementById('ec-apelido').value = c.apelido || '';
+  document.getElementById('ec-telefone').value = c.telefone || '';
+  document.getElementById('ec-email').value = c.email || '';
+  openModal('modal-editar-cliente');
+}
+
+async function salvarEdicaoCliente() {
+  const telefoneOriginal = document.getElementById('ec-telefone-original').value;
+  const nomeCompleto = document.getElementById('ec-nome').value.trim();
+  const apelido      = document.getElementById('ec-apelido').value.trim();
+  const telefone     = document.getElementById('ec-telefone').value.replace(/\D/g, '');
+  const email        = document.getElementById('ec-email').value.trim();
+  if (!nomeCompleto) { toast('Informe o nome completo', true); return; }
+  if (!telefone)     { toast('Informe o telefone', true); return; }
+  const { error } = await sb.from('usuarios').update({
+    nome_completo: nomeCompleto, apelido: apelido || null,
+    telefone, email: email || null,
+  }).eq('telefone', telefoneOriginal);
+  if (error) { toast('Erro: ' + error.message, true); return; }
+  toast('Cliente atualizado!');
+  closeModal('modal-editar-cliente');
   loadClientes();
 }
 
