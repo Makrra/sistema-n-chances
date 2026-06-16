@@ -1488,14 +1488,23 @@ async function adicionarParticipante() {
       toast(`Saldo insuficiente (${fmtMoeda(saldoDisponivel)}). Altere para Pix.`, true);
       return;
     }
-    if (saldoDisponivel < valor - 0.005) {
-      const restante = valor - saldoDisponivel;
-      const nomeCliente = (allClientes.find(c => c.telefone === tel) || {}).apelido || tel;
-      if (!confirm(`Saldo de ${nomeCliente} insuficiente.\n\nDisponível: ${fmtMoeda(saldoDisponivel)}\nTotal: ${fmtMoeda(valor)}\nRestante (Pix): ${fmtMoeda(restante)}\n\nContinuar com saldo parcial + Pix?`)) return;
+    const nomeCliente = (allClientes.find(c => c.telefone === tel) || {}).apelido || tel;
+    const sugerido = Math.min(saldoDisponivel, valor).toFixed(2);
+    const input = prompt(
+      `Saldo de ${nomeCliente}: ${fmtMoeda(saldoDisponivel)}\nTotal da cota: ${fmtMoeda(valor)}\n\nQuanto usar do saldo?`,
+      sugerido
+    );
+    if (input === null) return;
+    const digitado = parseFloat((input || '0').replace(',', '.'));
+    if (isNaN(digitado) || digitado < 0) { toast('Valor inválido.', true); return; }
+    if (digitado > saldoDisponivel + 0.005) { toast(`Valor acima do saldo disponível (${fmtMoeda(saldoDisponivel)}).`, true); return; }
+    if (digitado > valor + 0.005) { toast(`Valor acima do total da cota (${fmtMoeda(valor)}).`, true); return; }
+    valorSaldoUsado = Math.min(digitado, valor);
+    if (valorSaldoUsado < 0.005) {
+      formaPagamento = 'pix';
+      valorSaldoUsado = 0;
+    } else if (valorSaldoUsado < valor - 0.005) {
       formaPagamento = 'misto';
-      valorSaldoUsado = saldoDisponivel;
-    } else {
-      valorSaldoUsado = valor;
     }
   }
   const maxPosicao = currentBolaoParts.reduce((m,p) => Math.max(m, p.posicao || 0), 1);
