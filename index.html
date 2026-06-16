@@ -1120,6 +1120,7 @@ async function abrirBolao(id) {
               <div class="item-info">
                 <div class="item-name">${nome}</div>
                 <div class="item-detail">${p.cotas} cota(s) • ${fmtMoeda(p.valor_total)}${p.posicao ? ' • Pos. '+p.posicao : ''}</div>
+                <div class="item-detail" style="color:${(p.saldo||0)>=0?'var(--green)':'var(--red)'}">Saldo: ${fmtMoeda(p.saldo||0)}</div>
               </div>
               ${statusBadge(p.status_pagamento)}
             </div>
@@ -1173,19 +1174,20 @@ async function marcarPago(partId, bolaoId) {
 // na própria participação).
 // 'pago' + 'saldo' -> existe um lançamento de débito com o valor correto;
 // caso contrário -> nenhum lançamento de débito para esse bolão/cliente.
-async function reconciliarExtratoDebito(telefone, bolaoId, statusPagamento, valorTotal, bolaoNome, formaPagamento) {
+async function reconciliarExtratoDebito(telefone, bolaoId, statusPagamento, valorTotal, bolaoNome, formaPagamento, valorSaldoUsado = 0) {
   const { data: existentes } = await sb.from('extrato').select('id,valor')
     .eq('telefone', telefone).eq('bolao_id', bolaoId).eq('tipo', 'debito');
   const existente = (existentes || [])[0];
-  const deveDebitar = statusPagamento === 'pago' && formaPagamento === 'saldo';
-  if (deveDebitar) {
+  const deveDebitar = statusPagamento === 'pago' && (formaPagamento === 'saldo' || formaPagamento === 'misto');
+  const valorDebito = formaPagamento === 'misto' ? valorSaldoUsado : valorTotal;
+  if (deveDebitar && valorDebito > 0) {
     if (existente) {
-      if (Number(existente.valor) !== Number(valorTotal)) {
-        await sb.from('extrato').update({ valor: valorTotal }).eq('id', existente.id);
+      if (Math.abs(Number(existente.valor) - Number(valorDebito)) > 0.005) {
+        await sb.from('extrato').update({ valor: valorDebito }).eq('id', existente.id);
       }
     } else {
       await sb.from('extrato').insert({
-        telefone, tipo: 'debito', valor: valorTotal,
+        telefone, tipo: 'debito', valor: valorDebito,
         descricao: `Participação bolão ${bolaoNome || bolaoId}`,
         bolao_id: bolaoId,
       });
@@ -1478,17 +1480,35 @@ async function adicionarParticipante() {
       return;
     }
   }
+  let valorSaldoUsado = 0;
+  if (!isOrganizador && formaPagamento === 'saldo' && status === 'pago') {
+    const { data: saldoData } = await sb.from('saldo_clientes').select('saldo').eq('telefone', tel).single();
+    const saldoDisponivel = parseFloat(saldoData?.saldo) || 0;
+    if (saldoDisponivel <= 0) {
+      toast(`Saldo insuficiente (${fmtMoeda(saldoDisponivel)}). Altere para Pix.`, true);
+      return;
+    }
+    if (saldoDisponivel < valor - 0.005) {
+      const restante = valor - saldoDisponivel;
+      const nomeCliente = (allClientes.find(c => c.telefone === tel) || {}).apelido || tel;
+      if (!confirm(`Saldo de ${nomeCliente} insuficiente.\n\nDisponível: ${fmtMoeda(saldoDisponivel)}\nTotal: ${fmtMoeda(valor)}\nRestante (Pix): ${fmtMoeda(restante)}\n\nContinuar com saldo parcial + Pix?`)) return;
+      formaPagamento = 'misto';
+      valorSaldoUsado = saldoDisponivel;
+    } else {
+      valorSaldoUsado = valor;
+    }
+  }
   const maxPosicao = currentBolaoParts.reduce((m,p) => Math.max(m, p.posicao || 0), 1);
   const posicao = maxPosicao + 1;
   const { error } = await sb.from('participacoes').insert({
     bolao_id: bolaoId, telefone: tel, cotas, valor_total: valor,
     status_pagamento: status, forma_pagamento: formaPagamento,
     pago_em: status === 'pago' ? new Date().toISOString() : null,
-    posicao,
+    posicao, valor_saldo_usado: valorSaldoUsado,
   });
   if (error) { toast('Erro: ' + error.message, true); return; }
   const bolao = allBoloes.find(b => b.id === bolaoId);
-  await reconciliarExtratoDebito(tel, bolaoId, status, valor, bolao?.nome, formaPagamento);
+  await reconciliarExtratoDebito(tel, bolaoId, status, valor, bolao?.nome, formaPagamento, valorSaldoUsado);
   toast('Participante adicionado!');
   closeModal('modal-add-part');
   if (isOrganizador) {
@@ -1740,14 +1760,25 @@ async function abrirExtrato(telefone, nome) {
   // são derivados das participações pagas para aparecer no histórico do cliente.
   const debitoBolaoIds = new Set(extratoItems.filter(e => e.tipo === 'debito' && e.bolao_id).map(e => e.bolao_id));
   const pagamentosPix = (partsRes.data || [])
-    .filter(p => (p.forma_pagamento || 'pix') !== 'saldo' && parseFloat(p.valor_total) > 0 && !debitoBolaoIds.has(p.bolao_id))
-    .map(p => ({
-      tipo: 'pix',
-      valor: p.valor_total,
-      descricao: `Pagamento Pix - ${p.boloes?.nome || 'Bolão'}${p.boloes?.concurso ? ' #' + p.boloes.concurso : ''}`,
-      criado_em: p.pago_em || p.criado_em,
-      naoAfetaSaldo: true,
-    }));
+    .filter(p => {
+      const forma = p.forma_pagamento || 'pix';
+      if (forma === 'saldo') return false;
+      if (parseFloat(p.valor_total) <= 0) return false;
+      if (forma === 'misto') return parseFloat(p.valor_total) - parseFloat(p.valor_saldo_usado || 0) > 0.005;
+      return !debitoBolaoIds.has(p.bolao_id);
+    })
+    .map(p => {
+      const valorPix = p.forma_pagamento === 'misto'
+        ? parseFloat(p.valor_total) - parseFloat(p.valor_saldo_usado || 0)
+        : parseFloat(p.valor_total);
+      return {
+        tipo: 'pix',
+        valor: valorPix,
+        descricao: `Pagamento Pix - ${p.boloes?.nome || 'Bolão'}${p.boloes?.concurso ? ' #' + p.boloes.concurso : ''}`,
+        criado_em: p.pago_em || p.criado_em,
+        naoAfetaSaldo: true,
+      };
+    });
 
   const items = [...extratoItems, ...pagamentosPix]
     .sort((a, b) => new Date(b.criado_em) - new Date(a.criado_em))
