@@ -635,9 +635,8 @@ select.form-control option { background: var(--bg); }
       <label class="form-label">Tipo</label>
       <select class="form-control" id="lanc-tipo">
         <option value="credito">Crédito</option>
-        <option value="debito">Débito</option>
         <option value="premio">Prêmio</option>
-        <option value="saque">Saque</option>
+        <option value="debito">Débito Manual</option>
       </select>
     </div>
     <div class="form-group">
@@ -1113,24 +1112,24 @@ async function abrirBolao(id) {
       parts.map(p => {
         const nome = (allClientes.find(c=>c.telefone===p.telefone)||{}).apelido || p.telefone;
         return `
-          <div class="list-item">
-            <div class="avatar">${initials(nome)}</div>
-            <div class="item-info">
-              <div class="item-name">${nome}</div>
-              <div class="item-detail">${p.cotas} cota(s) • ${fmtMoeda(p.valor_total)}</div>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-              ${statusBadge(p.status_pagamento)}
-              <div style="display:flex;gap:4px">
-                ${p.status_pagamento==='pendente'
-                  ? `<button class="btn btn-sm btn-success" style="font-size:.65rem;padding:4px 8px" onclick="marcarPago('${p.id}','${b.id}')">Marcar Pago</button>`
-                  : ''}
-                ${p.telefone !== TELEFONE_ORGANIZADOR
-                  ? `<a class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:#25D366;color:#fff;text-decoration:none" href="${linkComprovanteWhatsApp(b, p)}" target="_blank">Comprovante</a>`
-                  : ''}
-                <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--accent2);color:#74b9ff" onclick="abrirEditarPart('${p.id}','${b.id}')">Editar</button>
-                <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--red);color:#fff" onclick="excluirParticipacao('${p.id}','${b.id}')">Excluir</button>
+          <div style="padding:12px 0;border-bottom:1px solid var(--border)">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div class="avatar">${initials(nome)}</div>
+              <div class="item-info">
+                <div class="item-name">${nome}</div>
+                <div class="item-detail">${p.cotas} cota(s) • ${fmtMoeda(p.valor_total)}${p.posicao ? ' • Pos. '+p.posicao : ''}</div>
               </div>
+              ${statusBadge(p.status_pagamento)}
+            </div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;margin-top:8px">
+              ${p.status_pagamento==='pendente'
+                ? `<button class="btn btn-sm btn-success" style="font-size:.65rem;padding:4px 8px" onclick="marcarPago('${p.id}','${b.id}')">Marcar Pago</button>`
+                : ''}
+              ${p.telefone !== TELEFONE_ORGANIZADOR
+                ? `<a class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:#25D366;color:#fff;text-decoration:none" href="${linkComprovanteWhatsApp(b, p)}" target="_blank">Comprovante</a>`
+                : ''}
+              <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--accent2);color:#74b9ff" onclick="abrirEditarPart('${p.id}','${b.id}')">Editar</button>
+              <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--red);color:#fff" onclick="excluirParticipacao('${p.id}','${b.id}')">Excluir</button>
             </div>
           </div>`;
       }).join('')
@@ -1779,8 +1778,11 @@ async function abrirExtrato(telefone, nome) {
             <div class="item-name">${e.descricao || e.tipo}</div>
             <div class="item-detail">${fmtData(e.criado_em)}${e.naoAfetaSaldo ? ' • não afeta saldo' : ''}</div>
           </div>
-          <div class="item-value ${positivos.includes(e.tipo) ? 'text-green' : 'text-red'}">
-            ${positivos.includes(e.tipo) ? '+' : '-'}${fmtMoeda(e.valor)}
+          <div style="display:flex;align-items:center;gap:6px">
+            <div class="item-value ${positivos.includes(e.tipo) ? 'text-green' : 'text-red'}">
+              ${positivos.includes(e.tipo) ? '+' : '-'}${fmtMoeda(e.valor)}
+            </div>
+            ${e.id ? `<button onclick="excluirLancamento('${e.id}','${telefone}',${JSON.stringify(nome)})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:4px;line-height:1" title="Excluir lançamento">🗑</button>` : ''}
           </div>
         </div>
       `).join('')
@@ -1808,6 +1810,14 @@ async function criarLancamento() {
   closeModal('modal-lancamento');
   const nome = (allClientes.find(c=>c.telefone===tel)||{}).apelido || tel;
   abrirExtrato(tel, nome);
+}
+
+async function excluirLancamento(id, telefone, nome) {
+  if (!confirm(`Excluir este lançamento do extrato de ${nome}?\n\nEsta ação afeta o saldo do cliente e não pode ser desfeita.`)) return;
+  const { error } = await sb.from('extrato').delete().eq('id', id);
+  if (error) { toast('Erro: ' + error.message, true); return; }
+  toast('Lançamento removido.');
+  abrirExtrato(telefone, nome);
 }
 
 // ============================================================
