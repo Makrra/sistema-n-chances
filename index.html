@@ -728,7 +728,7 @@ const LOTERIA_LABEL = {
   'outro':      '⚪ SORTEIO',
 };
 const TIPO_SORTEIO_LABEL = {
-  acumulado: 'ACUMULADO', simples: 'SIMPLES', surpresinha: 'SURPRESINHA',
+  acumulado: 'ACUMULADA', simples: 'SIMPLES', surpresinha: 'SURPRESINHA',
   teimosinha: 'TEIMOSINHA', especial: 'ESPECIAL',
 };
 
@@ -796,28 +796,30 @@ const fmtDataExtenso = d => {
 
 function descreverCotas(cotas) {
   if (cotas === 1) return '1 cota INTEIRA';
-  if (cotas === 0.5) return '1 cota MEIA';
+  if (cotas === 0.5) return '1 MEIA cota';
   if (Number.isInteger(cotas)) return `${cotas} cotas INTEIRAS`;
   return `${cotas} cotas`;
 }
 
 // Monta a mensagem de comprovante enviada ao participante via WhatsApp
-function montarMensagemComprovante(bolao, cotas, posicao, totalCotistas) {
+function montarMensagemComprovante(bolao, cotas, posicao, saldo) {
   const loteriaLabel = LOTERIA_LABEL[bolao.loteria] || `⚪ ${(bolao.loteria||'').toUpperCase()}`;
   const tipoLabel = TIPO_SORTEIO_LABEL[bolao.tipo_sorteio] || (bolao.tipo_sorteio||'').toUpperCase();
-  const jogos = (bolao.jogos_descricao||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>`> ${l}`).join('\n');
-  return `Estou enviando essa mensagem como prova que você adquiriu junto a Neydson Medeiros:\n\n`
-    + `${descreverCotas(cotas)} do BOLÃO abaixo: \n\n`
-    + `${loteriaLabel} ${tipoLabel} onde você estará concorrendo a uma premiação de ${bolao.premio_estimado || '—'} no sorteio do concurso ${bolao.concurso}.`
+  const jogos = (bolao.jogos_descricao||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>`*> ${l}*`).join('\n');
+  const saldoFmt = 'R$ ' + parseFloat(saldo||0).toFixed(2).replace('.', ',');
+  return `Estou enviando essa mensagem como prova que você *adquiriu junto a Neydson Medeiros*:\n\n`
+    + `*${descreverCotas(cotas)} do BOLÃO* abaixo: \n\n`
+    + `*${loteriaLabel} ${tipoLabel}* onde você estará concorrendo a uma premiação de *${bolao.premio_estimado || '—'}* no sorteio do concurso *${bolao.concurso}*.`
     + (jogos ? ` Com os seguintes jogos:\n\n${jogos}\n\n` : '\n\n')
-    + `O sorteio ocorrerá no dia ${fmtDataExtenso(bolao.data_sorteio)}. Estamos em ${totalCotistas} cotistas.\n\n`
-    + `Posição Lista: ${posicao || '—'}\n\n`
+    + `O sorteio ocorrerá no dia *${fmtDataExtenso(bolao.data_sorteio)}*. Estamos em *${bolao.quantidade_cotas} cotistas*.\n\n`
+    + `Posição Lista: *${posicao || '—'}*\n\n`
+    + `Saldo: *${saldoFmt}*\n\n`
     + `> Obs.: A premiação é dividida entre todos os cotistas.`;
 }
 
 // Link que abre a conversa do participante no WhatsApp já com o comprovante pronto
-function linkComprovanteWhatsApp(bolao, participacao, totalCotistas) {
-  const mensagem = montarMensagemComprovante(bolao, parseFloat(participacao.cotas), participacao.posicao, totalCotistas);
+function linkComprovanteWhatsApp(bolao, participacao) {
+  const mensagem = montarMensagemComprovante(bolao, parseFloat(participacao.cotas), participacao.posicao, participacao.saldo || 0);
   return `https://wa.me/${participacao.telefone}?text=${encodeURIComponent(mensagem)}`;
 }
 const initials = n => (n||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
@@ -1059,13 +1061,15 @@ async function abrirBolao(id) {
   modal.innerHTML = '<div class="loading"><div class="spinner"></div>Carregando...</div>';
   openModal('modal-bolao-det');
 
-  const [boRes, partRes] = await Promise.all([
+  const [boRes, partRes, saldosRes] = await Promise.all([
     sb.from('boloes').select('*').eq('id', id).single(),
     sb.from('participacoes').select('*').eq('bolao_id', id).order('criado_em'),
+    sb.from('saldo_clientes').select('telefone,saldo'),
   ]);
 
   const b = boRes.data;
-  const parts = partRes.data || [];
+  const saldoMap = Object.fromEntries((saldosRes.data||[]).map(s => [s.telefone, parseFloat(s.saldo)||0]));
+  const parts = (partRes.data || []).map(p => ({ ...p, saldo: saldoMap[p.telefone] || 0 }));
   currentBolaoParts = parts;
   // Cotas de cortesia do organizador não contam para o arrecadado/lucro
   const totalArrecadado = parts.filter(p=>p.status_pagamento==='pago' && p.telefone !== TELEFONE_ORGANIZADOR).reduce((s,p)=>s+(p.valor_total||0),0);
@@ -1122,7 +1126,7 @@ async function abrirBolao(id) {
                   ? `<button class="btn btn-sm btn-success" style="font-size:.65rem;padding:4px 8px" onclick="marcarPago('${p.id}','${b.id}')">Marcar Pago</button>`
                   : ''}
                 ${p.telefone !== TELEFONE_ORGANIZADOR
-                  ? `<a class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:#25D366;color:#fff;text-decoration:none" href="${linkComprovanteWhatsApp(b, p, parts.length)}" target="_blank">Comprovante</a>`
+                  ? `<a class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:#25D366;color:#fff;text-decoration:none" href="${linkComprovanteWhatsApp(b, p)}" target="_blank">Comprovante</a>`
                   : ''}
                 <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--accent2);color:#74b9ff" onclick="abrirEditarPart('${p.id}','${b.id}')">Editar</button>
                 <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--red);color:#fff" onclick="excluirParticipacao('${p.id}','${b.id}')">Excluir</button>
@@ -1491,10 +1495,11 @@ async function adicionarParticipante() {
     loadBoloes();
     loadDashboard();
   } else {
-    const totalCotistas = currentBolaoParts.length + 1;
+    const { data: saldoData } = await sb.from('saldo_clientes').select('saldo').eq('telefone', tel).single();
+    const saldo = parseFloat(saldoData?.saldo) || 0;
     const nomeCliente = (allClientes.find(c=>c.telefone===tel)||{}).apelido || tel;
     document.getElementById('comp-nome').textContent = nomeCliente;
-    document.getElementById('comp-link').href = linkComprovanteWhatsApp(bolao, { telefone: tel, cotas, posicao }, totalCotistas);
+    document.getElementById('comp-link').href = linkComprovanteWhatsApp(bolao, { telefone: tel, cotas, posicao, saldo });
     comprovanteBolaoId = bolaoId;
     openModal('modal-comprovante');
   }
