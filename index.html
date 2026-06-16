@@ -1784,7 +1784,7 @@ async function abrirExtrato(telefone, nome) {
             <div class="item-value ${positivos.includes(e.tipo) ? 'text-green' : 'text-red'}">
               ${positivos.includes(e.tipo) ? '+' : '-'}${fmtMoeda(e.valor)}
             </div>
-            ${e.id ? `<button onclick="excluirLancamento('${e.id}','${telefone}',${JSON.stringify(nome)})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:4px;line-height:1" title="Excluir lançamento">🗑</button>` : ''}
+            ${e.id ? `<button onclick="excluirLancamento('${e.id}','${telefone}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:4px;line-height:1" title="Excluir lançamento">🗑</button>` : ''}
           </div>
         </div>
       `).join('')
@@ -1814,7 +1814,8 @@ async function criarLancamento() {
   abrirExtrato(tel, nome);
 }
 
-async function excluirLancamento(id, telefone, nome) {
+async function excluirLancamento(id, telefone) {
+  const nome = (allClientes.find(c => c.telefone === telefone) || {}).apelido || telefone;
   if (!confirm(`Excluir este lançamento do extrato de ${nome}?\n\nEsta ação afeta o saldo do cliente e não pode ser desfeita.`)) return;
   const { error } = await sb.from('extrato').delete().eq('id', id);
   if (error) { toast('Erro: ' + error.message, true); return; }
