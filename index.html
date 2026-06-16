@@ -1644,9 +1644,11 @@ async function excluirParticipacao(partId, bolaoId) {
 // ============================================================
 async function loadClientes() {
   document.getElementById('clientes-list').innerHTML = '<div class="loading"><div class="spinner"></div>Carregando...</div>';
-  const { data, error } = await sb.from('usuarios').select('*').order('nome_completo');
+  const { data, error } = await sb.from('usuarios').select('*');
   if (error) { toast('Erro ao carregar clientes', true); return; }
-  allClientes = data || [];
+  allClientes = (data || []).sort((a, b) =>
+    (a.apelido || a.nome_completo || '').localeCompare(b.apelido || b.nome_completo || '', 'pt-BR', { sensitivity: 'base' })
+  );
   renderClientes(allClientes);
 }
 
