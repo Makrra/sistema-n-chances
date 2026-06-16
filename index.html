@@ -802,13 +802,13 @@ function descreverCotas(cotas) {
 
 // Monta a mensagem de comprovante enviada ao participante via WhatsApp
 function montarMensagemComprovante(bolao, cotas, posicao, saldo) {
-  const loteriaLabel = LOTERIA_LABEL[bolao.loteria] || `⚪ ${(bolao.loteria||'').toUpperCase()}`;
-  const tipoLabel = TIPO_SORTEIO_LABEL[bolao.tipo_sorteio] || (bolao.tipo_sorteio||'').toUpperCase();
+  const emoji = (LOTERIA_LABEL[bolao.loteria] || '⚪').split(' ')[0];
+  const tituloBolaо = bolao.nome || (bolao.loteria||'').toUpperCase();
   const jogos = (bolao.jogos_descricao||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>`*> ${l}*`).join('\n');
   const saldoFmt = 'R$ ' + parseFloat(saldo||0).toFixed(2).replace('.', ',');
   return `Estou enviando essa mensagem como prova que você *adquiriu junto a Neydson Medeiros*:\n\n`
     + `*${descreverCotas(cotas)} do BOLÃO* abaixo: \n\n`
-    + `*${loteriaLabel} ${tipoLabel}* onde você estará concorrendo a uma premiação de *${bolao.premio_estimado || '—'}* no sorteio do concurso *${bolao.concurso}*.`
+    + `*${emoji} ${tituloBolaо}* onde você estará concorrendo a uma premiação de *${bolao.premio_estimado || '—'}* no sorteio do concurso *${bolao.concurso}*.`
     + (jogos ? ` Com os seguintes jogos:\n\n${jogos}\n\n` : '\n\n')
     + `O sorteio ocorrerá no dia *${fmtDataExtenso(bolao.data_sorteio)}*. Estamos em *${bolao.quantidade_cotas} cotistas*.\n\n`
     + `Posição Lista: *${posicao || '—'}*\n\n`
