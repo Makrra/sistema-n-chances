@@ -859,8 +859,8 @@ function montarMensagemComprovante(bolao, cotas, posicao, saldo, part = {}) {
     + (jogos ? ` Com os seguintes jogos:\n\n${jogos}\n\n` : '\n\n')
     + `O sorteio ocorrerá no dia *${fmtDataExtenso(bolao.data_sorteio)}*. Estamos em *${bolao.quantidade_cotas} cotistas*.\n\n`
     + `Posição Lista: *${posicao || '—'}*\n\n`
-    + `Saldo: *${saldoFmt}*\n\n`
-    + `> Obs.: A premiação é dividida entre todos os cotistas.${pagamentoSection}`;
+    + `Saldo: *${saldoFmt}*${pagamentoSection}\n\n`
+    + `> *Obs.:* Se o bolão for premiado, o valor é dividido proporcionalmente entre todos os cotistas — quem adquiriu mais cotas recebe uma parte maior do prêmio.`;
 }
 
 // Link que abre a conversa do participante no WhatsApp já com o comprovante pronto
