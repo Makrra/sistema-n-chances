@@ -140,3 +140,6 @@ ALTER TABLE participacoes ADD COLUMN IF NOT EXISTS posicao INTEGER;
 -- 13. Pagamento misto (saldo parcial + Pix): valor_saldo_usado guarda quanto do
 -- valor_total foi abatido do saldo interno. forma_pagamento='misto' indica split.
 ALTER TABLE participacoes ADD COLUMN IF NOT EXISTS valor_saldo_usado NUMERIC(10,2) NOT NULL DEFAULT 0;
+
+-- 14. Rastreamento de envio do comprovante WhatsApp por participação.
+ALTER TABLE participacoes ADD COLUMN IF NOT EXISTS comprovante_enviado_em TIMESTAMPTZ;

@@ -567,7 +567,7 @@ select.form-control option { background: var(--bg); }
     <div style="font-size:.85rem;color:var(--muted);margin-bottom:16px">
       Envie o comprovante de compra para <strong id="comp-nome" style="color:var(--text)"></strong> via WhatsApp.
     </div>
-    <a id="comp-link" class="btn btn-block" style="background:#25D366;color:#fff;text-decoration:none;display:block;text-align:center" target="_blank" onclick="fecharComprovante()">Abrir WhatsApp com o Comprovante</a>
+    <a id="comp-link" class="btn btn-block" style="background:#25D366;color:#fff;text-decoration:none;display:block;text-align:center" target="_blank" onclick="fecharComprovante(true)">Abrir WhatsApp com o Comprovante</a>
     <div style="height:10px"></div>
     <button class="btn btn-block" style="background:var(--border);color:var(--muted)" onclick="fecharComprovante()">Fechar</button>
   </div>
@@ -766,7 +766,10 @@ let allBoloes   = [];
 let currentBolaoFilter = 'todos';
 let currentSaquesFilter = 'pendente';
 let currentBolaoParts = [];
-let comprovanteBolaoId = null; // bolão a recarregar após fechar modal-comprovante
+let comprovanteBolaoId = null;
+let comprovantePartId = null;
+let currentBolaoData = null;
+let currentPartFilter = 'todos';
 let cotasOcupadas = {};      // bolao_id -> soma de cotas (reservadas + vendidas)
 let arrecadadoPorBolao = {}; // bolao_id -> soma de valor_total das participações pagas
 let dashBoloes = [];          // boloes carregados no dashboard (p/ recálculo do caixa)
@@ -1099,6 +1102,7 @@ async function abrirBolao(id) {
   const saldoMap = Object.fromEntries((saldosRes.data||[]).map(s => [s.telefone, parseFloat(s.saldo)||0]));
   const parts = (partRes.data || []).map(p => ({ ...p, saldo: saldoMap[p.telefone] || 0 }));
   currentBolaoParts = parts;
+  currentBolaoData = b;
   // Cotas de cortesia do organizador não contam para o arrecadado/lucro
   const totalArrecadado = parts.filter(p=>p.status_pagamento==='pago' && p.telefone !== TELEFONE_ORGANIZADOR).reduce((s,p)=>s+(p.valor_total||0),0);
   const totalPendente   = parts.filter(p=>p.status_pagamento==='pendente').reduce((s,p)=>s+(p.valor_total||0),0);
@@ -1136,35 +1140,17 @@ async function abrirBolao(id) {
       <button class="btn btn-sm" style="background:var(--border);color:var(--muted)" onclick="closeModal('modal-bolao-det')">Fechar</button>
     </div>
     <div class="divider"></div>
-    <div style="font-size:.85rem;font-weight:600;margin-bottom:10px">Participantes</div>
-    ${parts.length === 0 ? '<div style="color:var(--muted);font-size:.8rem">Nenhum participante ainda.</div>' :
-      parts.map(p => {
-        const nome = (allClientes.find(c=>c.telefone===p.telefone)||{}).apelido || p.telefone;
-        return `
-          <div style="padding:12px 0;border-bottom:1px solid var(--border)">
-            <div style="display:flex;align-items:center;gap:12px">
-              <div class="avatar">${initials(nome)}</div>
-              <div class="item-info">
-                <div class="item-name">${nome}</div>
-                <div class="item-detail">${p.cotas} cota(s) • ${fmtMoeda(p.valor_total)}${p.posicao ? ' • Pos. '+p.posicao : ''}</div>
-                <div class="item-detail" style="color:${(p.saldo||0)>=0?'var(--green)':'var(--red)'}">Saldo: ${fmtMoeda(p.saldo||0)}</div>
-              </div>
-              ${statusBadge(p.status_pagamento)}
-            </div>
-            <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;margin-top:8px">
-              ${p.status_pagamento==='pendente'
-                ? `<button class="btn btn-sm btn-success" style="font-size:.65rem;padding:4px 8px" onclick="marcarPago('${p.id}','${b.id}')">Marcar Pago</button>`
-                : ''}
-              ${p.telefone !== TELEFONE_ORGANIZADOR
-                ? `<a class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:#25D366;color:#fff;text-decoration:none" href="${linkComprovanteWhatsApp(b, p)}" target="_blank">Comprovante</a>`
-                : ''}
-              <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--accent2);color:#74b9ff" onclick="abrirEditarPart('${p.id}','${b.id}')">Editar</button>
-              <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--red);color:#fff" onclick="excluirParticipacao('${p.id}','${b.id}')">Excluir</button>
-            </div>
-          </div>`;
-      }).join('')
-    }
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:.85rem;font-weight:600">Participantes</div>
+      <div style="display:flex;gap:4px">
+        <button id="chip-todos" class="btn btn-sm" style="font-size:.65rem;padding:3px 8px" onclick="renderParticipantesLista('todos')">Todos</button>
+        <button id="chip-pendentes" class="btn btn-sm" style="font-size:.65rem;padding:3px 8px" onclick="renderParticipantesLista('pendentes')">Pendentes</button>
+        <button id="chip-sem-comprovante" class="btn btn-sm" style="font-size:.65rem;padding:3px 8px" onclick="renderParticipantesLista('sem-comprovante')">Sem ✉</button>
+      </div>
+    </div>
+    <div id="bolao-parts-list"></div>
   `;
+  renderParticipantesLista('todos');
 }
 
 async function updateBolaoStatus(id, status) {
@@ -1548,18 +1534,18 @@ async function adicionarParticipante() {
   }
   const maxPosicao = currentBolaoParts.reduce((m,p) => Math.max(m, p.posicao || 0), 1);
   const posicao = maxPosicao + 1;
-  const { error } = await sb.from('participacoes').insert({
+  const { data: newPart, error } = await sb.from('participacoes').insert({
     bolao_id: bolaoId, telefone: tel, cotas, valor_total: valor,
     status_pagamento: status, forma_pagamento: formaPagamento,
     pago_em: status === 'pago' ? new Date().toISOString() : null,
     posicao, valor_saldo_usado: valorSaldoUsado,
-  });
+  }).select('id').single();
   if (error) { toast('Erro: ' + error.message, true); return; }
   const bolao = allBoloes.find(b => b.id === bolaoId);
   await reconciliarExtratoDebito(tel, bolaoId, status, valor, bolao?.nome, formaPagamento, valorSaldoUsado);
   toast('Participante adicionado!');
   closeModal('modal-add-part');
-  if (isOrganizador) {
+  if (isOrganizador || status !== 'pago') {
     abrirBolao(bolaoId);
     loadBoloes();
     loadDashboard();
@@ -1570,18 +1556,79 @@ async function adicionarParticipante() {
     document.getElementById('comp-nome').textContent = nomeCliente;
     document.getElementById('comp-link').href = linkComprovanteWhatsApp(bolao, { telefone: tel, cotas, posicao, saldo });
     comprovanteBolaoId = bolaoId;
+    comprovantePartId = newPart?.id || null;
     openModal('modal-comprovante');
   }
 }
 
-function fecharComprovante() {
+async function fecharComprovante(foiEnviado = false) {
   closeModal('modal-comprovante');
+  if (foiEnviado && comprovantePartId) {
+    await marcarComprovanteEnviado(comprovantePartId);
+  }
+  comprovantePartId = null;
   if (comprovanteBolaoId) {
     abrirBolao(comprovanteBolaoId);
     loadBoloes();
     loadDashboard();
     comprovanteBolaoId = null;
   }
+}
+
+async function marcarComprovanteEnviado(partId) {
+  if (!partId) return;
+  const agora = new Date().toISOString();
+  const idx = currentBolaoParts.findIndex(p => p.id === partId);
+  if (idx !== -1) currentBolaoParts[idx] = { ...currentBolaoParts[idx], comprovante_enviado_em: agora };
+  renderParticipantesLista(currentPartFilter);
+  await sb.from('participacoes').update({ comprovante_enviado_em: agora }).eq('id', partId);
+}
+
+function renderParticipantesLista(filter) {
+  currentPartFilter = filter;
+  const chips = { 'todos': 'chip-todos', 'pendentes': 'chip-pendentes', 'sem-comprovante': 'chip-sem-comprovante' };
+  Object.entries(chips).forEach(([f, id]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.background = f === filter ? 'var(--primary)' : 'var(--border)';
+    el.style.color       = f === filter ? '#fff'          : 'var(--muted)';
+  });
+  const b = currentBolaoData;
+  const container = document.getElementById('bolao-parts-list');
+  if (!container || !b) return;
+  let lista = currentBolaoParts;
+  if (filter === 'pendentes')       lista = lista.filter(p => p.status_pagamento === 'pendente');
+  if (filter === 'sem-comprovante') lista = lista.filter(p => !p.comprovante_enviado_em && p.telefone !== TELEFONE_ORGANIZADOR);
+  if (lista.length === 0) {
+    container.innerHTML = `<div style="color:var(--muted);font-size:.8rem;padding:12px 0">Nenhum participante${filter !== 'todos' ? ' neste filtro' : ' ainda'}.</div>`;
+    return;
+  }
+  container.innerHTML = lista.map(p => {
+    const nome = (allClientes.find(c => c.telefone === p.telefone) || {}).apelido || p.telefone;
+    return `
+      <div style="padding:12px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="avatar">${initials(nome)}</div>
+          <div class="item-info">
+            <div class="item-name">${nome}</div>
+            <div class="item-detail">${p.cotas} cota(s) • ${fmtMoeda(p.valor_total)}${p.posicao ? ' • Pos. '+p.posicao : ''}</div>
+            <div class="item-detail" style="color:${(p.saldo||0)>=0?'var(--green)':'var(--red)'}">Saldo: ${fmtMoeda(p.saldo||0)}</div>
+            ${p.comprovante_enviado_em ? `<div style="font-size:.7rem;color:var(--green)">✓ Comprovante enviado em ${fmtData(p.comprovante_enviado_em)}</div>` : ''}
+          </div>
+          ${statusBadge(p.status_pagamento)}
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;margin-top:8px">
+          ${p.status_pagamento==='pendente'
+            ? `<button class="btn btn-sm btn-success" style="font-size:.65rem;padding:4px 8px" onclick="marcarPago('${p.id}','${b.id}')">Marcar Pago</button>`
+            : ''}
+          ${p.telefone !== TELEFONE_ORGANIZADOR
+            ? `<a class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:#25D366;color:#fff;text-decoration:none" href="${linkComprovanteWhatsApp(b, p)}" target="_blank" onclick="marcarComprovanteEnviado('${p.id}')">Comprovante</a>`
+            : ''}
+          <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--accent2);color:#74b9ff" onclick="abrirEditarPart('${p.id}','${b.id}')">Editar</button>
+          <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--red);color:#fff" onclick="excluirParticipacao('${p.id}','${b.id}')">Excluir</button>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 // ============================================================
