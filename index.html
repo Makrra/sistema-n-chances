@@ -831,11 +831,28 @@ function descreverCotas(cotas) {
 }
 
 // Monta a mensagem de comprovante enviada ao participante via WhatsApp
-function montarMensagemComprovante(bolao, cotas, posicao, saldo) {
+function montarMensagemComprovante(bolao, cotas, posicao, saldo, part = {}) {
   const emoji = (LOTERIA_LABEL[bolao.loteria] || '⚪').split(' ')[0];
   const tituloBolaо = bolao.nome || (bolao.loteria||'').toUpperCase();
   const jogos = (bolao.jogos_descricao||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>`*> ${l}*`).join('\n');
   const saldoFmt = 'R$ ' + parseFloat(saldo||0).toFixed(2).replace('.', ',');
+
+  let pagamentoSection = '';
+  if (part.pago_em) {
+    const forma = part.forma_pagamento || 'pix';
+    const total = parseFloat(part.valor_total || 0);
+    const saldoUsado = parseFloat(part.valor_saldo_usado || 0);
+    let transacoes = '';
+    if (forma === 'misto') {
+      transacoes = `💳 Saldo: *${fmtMoeda(saldoUsado)}*\n📱 Pix: *${fmtMoeda(total - saldoUsado)}*`;
+    } else if (forma === 'saldo') {
+      transacoes = `💳 Saldo: *${fmtMoeda(total)}*`;
+    } else {
+      transacoes = `📱 Pix: *${fmtMoeda(total)}*`;
+    }
+    pagamentoSection = `\n\n*Data do pagamento:* ${fmtData(part.pago_em)}\n${transacoes}`;
+  }
+
   return `Estou enviando essa mensagem como prova que você *adquiriu junto a Neydson Medeiros*:\n\n`
     + `*${descreverCotas(cotas)} do BOLÃO* abaixo: \n\n`
     + `*${emoji} ${tituloBolaо}* onde você estará concorrendo a uma premiação de *${bolao.premio_estimado || '—'}* no sorteio do concurso *${bolao.concurso}*.`
@@ -843,12 +860,12 @@ function montarMensagemComprovante(bolao, cotas, posicao, saldo) {
     + `O sorteio ocorrerá no dia *${fmtDataExtenso(bolao.data_sorteio)}*. Estamos em *${bolao.quantidade_cotas} cotistas*.\n\n`
     + `Posição Lista: *${posicao || '—'}*\n\n`
     + `Saldo: *${saldoFmt}*\n\n`
-    + `> Obs.: A premiação é dividida entre todos os cotistas.`;
+    + `> Obs.: A premiação é dividida entre todos os cotistas.${pagamentoSection}`;
 }
 
 // Link que abre a conversa do participante no WhatsApp já com o comprovante pronto
 function linkComprovanteWhatsApp(bolao, participacao) {
-  const mensagem = montarMensagemComprovante(bolao, parseFloat(participacao.cotas), participacao.posicao, participacao.saldo || 0);
+  const mensagem = montarMensagemComprovante(bolao, parseFloat(participacao.cotas), participacao.posicao, participacao.saldo || 0, participacao);
   return `https://wa.me/${participacao.telefone}?text=${encodeURIComponent(mensagem)}`;
 }
 const initials = n => (n||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
@@ -1554,7 +1571,13 @@ async function adicionarParticipante() {
     const saldo = parseFloat(saldoData?.saldo) || 0;
     const nomeCliente = (allClientes.find(c=>c.telefone===tel)||{}).apelido || tel;
     document.getElementById('comp-nome').textContent = nomeCliente;
-    document.getElementById('comp-link').href = linkComprovanteWhatsApp(bolao, { telefone: tel, cotas, posicao, saldo });
+    document.getElementById('comp-link').href = linkComprovanteWhatsApp(bolao, {
+      telefone: tel, cotas, posicao, saldo,
+      pago_em: new Date().toISOString(),
+      forma_pagamento: formaPagamento,
+      valor_total: valor,
+      valor_saldo_usado: valorSaldoUsado,
+    });
     comprovanteBolaoId = bolaoId;
     comprovantePartId = newPart?.id || null;
     openModal('modal-comprovante');
