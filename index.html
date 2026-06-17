@@ -850,7 +850,7 @@ function montarMensagemComprovante(bolao, cotas, posicao, saldo, part = {}) {
     } else {
       transacoes = `📱 Pix: *${fmtMoeda(total)}*`;
     }
-    pagamentoSection = `\n\n*Data do pagamento:* ${fmtData(part.pago_em)}\n${transacoes}`;
+    pagamentoSection = `\n\n> *Data do pagamento:* ${fmtData(part.pago_em)}\n> ${transacoes.split('\n').join('\n> ')}`;
   }
 
   return `Estou enviando essa mensagem como prova que você *adquiriu junto a Neydson Medeiros*:\n\n`
