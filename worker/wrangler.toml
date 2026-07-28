@@ -57,3 +57,7 @@ database_id = "e89f109f-b65b-4cf7-a8c8-d84cd4e92bd5"
 [[env.production.routes]]
 pattern = "nchances.com.br"
 custom_domain = true
+
+[[env.production.routes]]
+pattern = "www.nchances.com.br"
+custom_domain = true
