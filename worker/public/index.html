@@ -930,42 +930,60 @@ async function loadDashboard() {
   renderCaixa();
 }
 
+// Card de ranking em mini-barras horizontais: rows = [{label, valor, display}],
+// ordenado do maior pro menor. O #1 vem em destaque (barra cheia + negrito),
+// os demais em opacidade reduzida (mesmo tom, só pra dar contexto/comparação).
+function renderRankingCard(titulo, rows) {
+  if (!rows.length) {
+    return `
+      <div class="card" style="margin-bottom:0">
+        <div class="card-sub" style="margin-bottom:4px">${titulo}</div>
+        <div class="card-sub">Ainda sem dados</div>
+      </div>`;
+  }
+  const max = Math.max(...rows.map(r => r.valor)) || 1;
+  return `
+    <div class="card" style="margin-bottom:0">
+      <div class="card-sub" style="margin-bottom:10px">${titulo}</div>
+      ${rows.map((r, i) => `
+        <div style="display:flex;align-items:center;gap:7px;${i < rows.length - 1 ? 'margin-bottom:8px' : ''}">
+          <div style="width:14px;flex-shrink:0;font-size:.65rem;color:var(--muted);text-align:right">${i + 1}</div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;justify-content:space-between;gap:8px;font-size:${i === 0 ? '.82rem' : '.74rem'};margin-bottom:3px">
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:${i === 0 ? '700' : '400'}">${r.label}</span>
+              <span style="color:var(--muted);flex-shrink:0">${r.display}</span>
+            </div>
+            <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${(r.valor / max * 100).toFixed(1)}%;background:var(--accent);opacity:${i === 0 ? '1' : '.4'};border-radius:3px"></div>
+            </div>
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
+}
+
 // Indicadores de negócio (all-time, sem filtro de período) que substituem
 // a antiga lista de bolões no Dashboard — essa lista já existe na aba "Bolões".
 function renderInsights(insights) {
-  const nomeLoteria = l => l ? (LOTERIA_LABEL[l] || l.toUpperCase()) : '—';
-  const cards = [
-    {
-      titulo: '🏆 MELHOR CLIENTE',
-      valor: insights.melhor_cliente ? insights.melhor_cliente.nome : '—',
-      sub: insights.melhor_cliente ? `${fmtMoeda(insights.melhor_cliente.total)} em cotas pagas` : 'Ainda sem dados',
-    },
-    {
-      titulo: '📈 LOTERIA MAIS VENDIDA',
-      valor: nomeLoteria(insights.loteria_mais_vendida?.loteria),
-      sub: insights.loteria_mais_vendida ? `${fmtMoeda(insights.loteria_mais_vendida.total)} arrecadados` : 'Ainda sem dados',
-    },
-    {
-      titulo: '💰 TICKET MAIS CARO',
-      valor: nomeLoteria(insights.loteria_ticket_mais_caro?.loteria),
-      sub: insights.loteria_ticket_mais_caro ? `${fmtMoeda(insights.loteria_ticket_mais_caro.media_valor_cota)} em média por cota` : 'Ainda sem dados',
-    },
-    {
-      titulo: '🎟️ BOLÕES COM MAIS COTAS',
-      valor: nomeLoteria(insights.loteria_mais_cotas?.loteria),
-      sub: insights.loteria_mais_cotas ? `${insights.loteria_mais_cotas.media_cotas.toFixed(1)} cotas em média` : 'Ainda sem dados',
-    },
-  ];
+  const nomeLoteria = l => LOTERIA_LABEL[l] || (l || '').toUpperCase();
+
+  const html = [
+    renderRankingCard('🏆 MELHOR CLIENTE (TOP 5)', insights.melhor_clientes.map(c => ({
+      label: c.nome, valor: c.total, display: fmtMoeda(c.total),
+    }))),
+    renderRankingCard('📈 LOTERIA MAIS VENDIDA', insights.loteria_mais_vendida.map(l => ({
+      label: nomeLoteria(l.loteria), valor: l.total, display: fmtMoeda(l.total),
+    }))),
+    renderRankingCard('💰 TICKET MAIS CARO (média por loteria)', insights.loteria_ticket_mais_caro.map(l => ({
+      label: nomeLoteria(l.loteria), valor: l.media_valor_cota, display: fmtMoeda(l.media_valor_cota),
+    }))),
+    renderRankingCard('🎟️ BOLÕES COM MAIS COTAS (média por loteria)', insights.loteria_mais_cotas.map(l => ({
+      label: nomeLoteria(l.loteria), valor: l.media_cotas, display: l.media_cotas.toFixed(1),
+    }))),
+  ].join('');
+
   document.getElementById('dash-insights').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      ${cards.map(c => `
-        <div class="card" style="margin-bottom:0">
-          <div class="card-sub" style="margin-bottom:6px">${c.titulo}</div>
-          <div style="font-size:1rem;font-weight:800">${c.valor}</div>
-          <div class="card-sub" style="margin-top:2px;color:var(--green)">${c.sub}</div>
-        </div>
-      `).join('')}
-    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">${html}</div>
   `;
 }
 
