@@ -58,34 +58,29 @@ export async function planReconciliacaoDebito(db, {
 }
 
 // Réplica de distribuirPremio (index.html): substitui os lançamentos tipo
-// 'premio' do bolão, ratado proporcionalmente às cotas de cada participante
-// pago (cortesia do organizador conta como multiplicador, igual ao original).
-// Ajuste de arredondamento no último participante para bater centavo exato
-// (agora em inteiro, sem risco de deriva de float).
+// 'premio' do bolão, ratado por um valor FIXO por cota = premioTotal /
+// quantidade_cotas do bolão (não pelas cotas só de quem pagou). Quem não
+// pagou não recebe nada, e a parte dele fica sem distribuir pra ninguém —
+// decisão de negócio confirmada com o usuário (evita inflar o valor por
+// cota de quem pagou quando alguém deixa a cota pendente).
 //
 // CHAMAR SOMENTE depois que qualquer mutação de participacoes desta mesma
 // requisição já tiver sido commitada (ver nota no topo do arquivo).
-export async function planDistribuicaoPremio(db, { bolaoId, premioTotalCentavos, bolaoNome, bolaoConcurso, newId, nowIso }) {
+export async function planDistribuicaoPremio(db, { bolaoId, premioTotalCentavos, bolaoNome, bolaoConcurso, quantidadeCotas, newId, nowIso }) {
   const statements = [db.prepare(`DELETE FROM extrato WHERE bolao_id=? AND tipo='premio'`).bind(bolaoId)];
   const telefonesAfetados = new Set();
   if (!premioTotalCentavos || premioTotalCentavos <= 0) return { statements, telefonesAfetados };
+
+  const totalCotasMeiasBolao = (quantidadeCotas || 0) * 2;
+  if (totalCotasMeiasBolao <= 0) return { statements, telefonesAfetados };
 
   const { results: pagantes } = await db.prepare(
     `SELECT telefone, cotas_meias FROM participacoes WHERE bolao_id=? AND status_pagamento='pago'`
   ).bind(bolaoId).all();
 
-  const totalCotasMeias = pagantes.reduce((s, p) => s + p.cotas_meias, 0);
-  if (!pagantes.length || totalCotasMeias <= 0) return { statements, telefonesAfetados };
-
-  let somaDistribuida = 0;
-  pagantes.forEach((p, idx) => {
-    let valor;
-    if (idx === pagantes.length - 1) {
-      valor = premioTotalCentavos - somaDistribuida;
-    } else {
-      valor = Math.round(premioTotalCentavos * (p.cotas_meias / totalCotasMeias));
-      somaDistribuida += valor;
-    }
+  pagantes.forEach((p) => {
+    const valor = Math.round(premioTotalCentavos * (p.cotas_meias / totalCotasMeiasBolao));
+    if (valor <= 0) return;
     statements.push(db.prepare(`
       INSERT INTO extrato (id, telefone, tipo, valor_centavos, descricao, bolao_id, criado_em)
       VALUES (?,?,?,?,?,?,?)

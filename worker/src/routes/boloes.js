@@ -168,7 +168,8 @@ export async function sortear(env, request, id) {
 
   if (premiado) {
     const { statements: premioStmts, telefonesAfetados } = await planDistribuicaoPremio(env.DB, {
-      bolaoId: id, premioTotalCentavos, bolaoNome: bolao.nome, bolaoConcurso: bolao.concurso, newId, nowIso,
+      bolaoId: id, premioTotalCentavos, bolaoNome: bolao.nome, bolaoConcurso: bolao.concurso,
+      quantidadeCotas: bolao.quantidade_cotas, newId, nowIso,
     });
     statements.push(...premioStmts);
     telefonesAfetados.forEach(t => statements.push(recomputeSaldoStmt(env.DB, t)));

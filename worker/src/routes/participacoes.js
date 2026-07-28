@@ -26,7 +26,8 @@ async function redistribuirSeNecessario(env, bolao) {
   if (bolao.bolao_status !== 'SORTEADO' || !(bolao.bolao_premio_ganho_centavos > 0)) return;
   const { statements: premioStmts, telefonesAfetados } = await planDistribuicaoPremio(env.DB, {
     bolaoId: bolao.bolao_id, premioTotalCentavos: bolao.bolao_premio_ganho_centavos,
-    bolaoNome: bolao.bolao_nome, bolaoConcurso: bolao.bolao_concurso, newId, nowIso,
+    bolaoNome: bolao.bolao_nome, bolaoConcurso: bolao.bolao_concurso,
+    quantidadeCotas: bolao.quantidade_cotas, newId, nowIso,
   });
   telefonesAfetados.forEach(t => premioStmts.push(recomputeSaldoStmt(env.DB, t)));
   try {
