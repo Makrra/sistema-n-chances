@@ -42,7 +42,14 @@ custom_domain = true
 # ============================================================
 # Produção: wrangler deploy --env production
 # Worker fica em "n-chances-production" (nome derivado automaticamente).
+# workers_dev = true expõe também https://n-chances-production.nchancees.workers.dev
+# — usado como acesso alternativo quando nchances.com.br é bloqueado por
+# ferramentas de rede corporativa que classificam domínios recém-registrados
+# (workers.dev já existe há anos, não cai nessa categoria).
 # ============================================================
+[env.production]
+workers_dev = true
+
 [env.production.assets]
 directory = "./public"
 binding = "ASSETS"
