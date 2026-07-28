@@ -1,0 +1,12 @@
+node_modules/
+.wrangler/
+worker/dev.log
+
+# Credenciais sensíveis (Service Token do Cloudflare Access, etc.)
+Site NChances Token de Serviços.txt
+*.token.txt
+
+# Exports de dados reais de clientes (migração Supabase -> D1) — nunca versionar
+*.csv
+data-real.sql
+data-teste.sql

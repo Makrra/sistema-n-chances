@@ -11,7 +11,6 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>N-Chances | Bolões</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
   --bg: #0f0f1a;
@@ -205,22 +204,6 @@ select.form-control option { background: var(--bg); }
 .ext-saque   { background: rgba(116,185,255,.15); }
 .ext-pix     { background: rgba(50,188,173,.15); }
 .divider { height: 1px; background: var(--border); margin: 16px 0; }
-/* LOGIN */
-.login-screen {
-  position: fixed; inset: 0; background: var(--bg);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 500; padding: 20px;
-}
-.login-card {
-  width: 100%; max-width: 360px;
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 32px 24px; text-align: center;
-}
-.login-logo { font-size: 1.6rem; font-weight: 800; color: var(--accent); margin-bottom: 4px; }
-.login-sub { font-size: 0.8rem; color: var(--muted); margin-bottom: 24px; }
-.login-error {
-  color: var(--red); font-size: 0.8rem; margin-top: 10px; min-height: 1.2em;
-}
 .logout-btn {
   background: none; border: 1px solid var(--border); color: var(--muted);
   border-radius: 8px; padding: 6px 10px; font-size: 0.7rem; cursor: pointer;
@@ -233,26 +216,10 @@ select.form-control option { background: var(--bg); }
 </head>
 <body>
 
-<!-- ======= LOGIN ======= -->
-<div class="login-screen" id="login-screen">
-  <div class="login-card">
-    <div class="login-logo">N-Chances</div>
-    <div class="login-sub">Faça login para acessar o sistema</div>
-    <div class="form-group">
-      <label class="form-label">E-mail</label>
-      <input class="form-control" id="login-email" type="email" placeholder="seu@email.com" autocomplete="username">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Senha</label>
-      <input class="form-control" id="login-password" type="password" placeholder="••••••••" autocomplete="current-password">
-    </div>
-    <button class="btn btn-primary btn-block" onclick="doLogin()">Entrar</button>
-    <div class="login-error" id="login-error"></div>
-  </div>
-</div>
-
 <!-- ======= APP ======= -->
-<div id="app" style="display:none">
+<!-- Login é resolvido pelo Cloudflare Access na borda, antes desta página
+     carregar: se você está vendo isto, já está autenticado. -->
+<div id="app">
 
 <div class="header">
   <div>
@@ -261,7 +228,7 @@ select.form-control option { background: var(--bg); }
   </div>
   <div style="display:flex;align-items:center;gap:8px">
     <div id="header-badge"></div>
-    <button class="logout-btn" onclick="doLogout()">Sair</button>
+    <button class="logout-btn" onclick="window.location.href='/cdn-cgi/access/logout'">Sair</button>
   </div>
 </div>
 
@@ -733,11 +700,28 @@ select.form-control option { background: var(--bg); }
 
 <script>
 // ============================================================
-// CONFIG SUPABASE
+// API (Cloudflare Worker) — autenticação é resolvida pelo Cloudflare
+// Access na borda; o Worker nunca vê credenciais.
 // ============================================================
-const SUPABASE_URL = 'https://tovuyswqdcmdomjqojfd.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvdnV5c3dxZGNtZG9tanFvamZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzE2OTk4ODEsImV4cCI6MjA0NzI3NTg4MX0.seCbBd2C24nwNHegDW9gkblXFrTrZTbNzNDlfwTvWF8';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const API_BASE = '/api';
+async function apiCall(method, path, body) {
+  const res = await fetch(API_BASE + path, {
+    method,
+    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  let data = null;
+  try { data = await res.json(); } catch { /* sem corpo */ }
+  if (!res.ok) return { data: null, error: { message: data?.error || res.statusText } };
+  return { data, error: null };
+}
+const api = {
+  get:    (path)       => apiCall('GET',    path),
+  post:   (path, body) => apiCall('POST',   path, body),
+  put:    (path, body) => apiCall('PUT',    path, body),
+  patch:  (path, body) => apiCall('PATCH',  path, body),
+  delete: (path)        => apiCall('DELETE', path),
+};
 
 // Telefone do organizador (Neydson Daniel de Medeiros) - usado para
 // vincular automaticamente as cotas reservadas ao criar um bolão
@@ -898,16 +882,13 @@ function statusBadge(s) {
 // DASHBOARD
 // ============================================================
 async function loadDashboard() {
-  const [boloesRes, partRes, saquesRes] = await Promise.all([
-    sb.from('boloes').select('*').order('criado_em', {ascending: false}),
-    sb.from('participacoes').select('bolao_id,telefone,cotas,valor_total,status_pagamento'),
-    sb.from('saques').select('*').eq('status','pendente'),
-  ]);
-  const boloes = boloesRes.data || [];
+  const { data, error } = await api.get('/dashboard');
+  if (error) { toast('Erro ao carregar dashboard: ' + error.message, true); return; }
+  const boloes = data.boloes;
   const abertos = boloes.filter(b => b.status === 'ABERTO');
-  const allParts = partRes.data || [];
+  const allParts = data.participacoes;
   const pendentes = allParts.filter(p => p.status_pagamento === 'pendente');
-  const saques = saquesRes.data || [];
+  const saques = data.saques;
 
   document.getElementById('stat-boloes').textContent   = abertos.length;
   document.getElementById('stat-pendentes').textContent = pendentes.length;
@@ -997,15 +978,12 @@ function renderCaixa() {
 // ============================================================
 async function loadBoloes() {
   document.getElementById('boloes-list').innerHTML = '<div class="loading"><div class="spinner"></div>Carregando...</div>';
-  const [boRes, partRes] = await Promise.all([
-    sb.from('boloes').select('*').order('criado_em', {ascending: false}),
-    sb.from('participacoes').select('bolao_id,telefone,cotas,valor_total,status_pagamento'),
-  ]);
-  if (boRes.error) { toast('Erro ao carregar bolões', true); return; }
-  allBoloes = boRes.data || [];
+  const { data, error } = await api.get('/boloes');
+  if (error) { toast('Erro ao carregar bolões', true); return; }
+  allBoloes = data.boloes;
   cotasOcupadas = {};
   arrecadadoPorBolao = {};
-  (partRes.data || []).forEach(p => {
+  data.participacoes.forEach(p => {
     cotasOcupadas[p.bolao_id] = (cotasOcupadas[p.bolao_id] || 0) + (parseFloat(p.cotas) || 0);
     // Cotas de cortesia do organizador não contam para o arrecadado/lucro
     if (p.status_pagamento === 'pago' && p.telefone !== TELEFONE_ORGANIZADOR) {
@@ -1074,24 +1052,15 @@ async function criarBolao() {
   if (!concurso) { toast('Informe o número do concurso', true); return; }
   if (!data) { toast('Informe a data do sorteio', true); return; }
   if (cotasReservadas > cotas) { toast('Cotas reservadas não podem ser maiores que o nº de cotas', true); return; }
-  const { data: novoBolao, error } = await sb.from('boloes').insert({
+  const { error } = await api.post('/boloes', {
     nome, loteria, tipo_sorteio: tipoSorteio,
     concurso: parseInt(concurso),
     data_sorteio: data,
     valor_cota_inteira: valor, valor_cota_meia: meiaCota, quantidade_cotas: cotas,
-    custo, status: 'ABERTO', observacao: obs || null,
+    cotas_reservadas: cotasReservadas, custo, observacao: obs || null,
     premio_estimado: premioEstimado || null, jogos_descricao: jogosDescricao || null,
-  }).select().single();
+  });
   if (error) { toast('Erro: ' + error.message, true); return; }
-  if (cotasReservadas > 0) {
-    const { error: errPart } = await sb.from('participacoes').insert({
-      bolao_id: novoBolao.id, telefone: TELEFONE_ORGANIZADOR,
-      cotas: cotasReservadas, valor_total: 0,
-      status_pagamento: 'pago', pago_em: new Date().toISOString(),
-      posicao: 1,
-    });
-    if (errPart) toast('Bolão criado, mas falhou ao reservar cotas: ' + errPart.message, true);
-  }
   toast('Bolão criado!');
   closeModal('modal-novo-bolao');
   loadBoloes();
@@ -1109,15 +1078,11 @@ async function abrirBolao(id) {
   modal.innerHTML = '<div class="loading"><div class="spinner"></div>Carregando...</div>';
   openModal('modal-bolao-det');
 
-  const [boRes, partRes, saldosRes] = await Promise.all([
-    sb.from('boloes').select('*').eq('id', id).single(),
-    sb.from('participacoes').select('*').eq('bolao_id', id).order('criado_em'),
-    sb.from('saldo_clientes').select('telefone,saldo'),
-  ]);
+  const { data, error } = await api.get(`/boloes/${id}`);
+  if (error) { toast('Erro ao carregar bolão: ' + error.message, true); closeModal('modal-bolao-det'); return; }
 
-  const b = boRes.data;
-  const saldoMap = Object.fromEntries((saldosRes.data||[]).map(s => [s.telefone, parseFloat(s.saldo)||0]));
-  const parts = (partRes.data || []).map(p => ({ ...p, saldo: saldoMap[p.telefone] || 0 }));
+  const b = data.bolao;
+  const parts = data.participacoes;
   currentBolaoParts = parts;
   currentBolaoData = b;
   // Cotas de cortesia do organizador não contam para o arrecadado/lucro
@@ -1171,7 +1136,7 @@ async function abrirBolao(id) {
 }
 
 async function updateBolaoStatus(id, status) {
-  const { error } = await sb.from('boloes').update({ status }).eq('id', id);
+  const { error } = await api.patch(`/boloes/${id}/status`, { status });
   if (error) { toast('Erro: ' + error.message, true); return; }
   toast('Status atualizado!');
   closeModal('modal-bolao-det');
@@ -1179,85 +1144,45 @@ async function updateBolaoStatus(id, status) {
   loadDashboard();
 }
 
-// Exibe prompt para o usuário confirmar quanto do saldo usar.
-// Retorna { formaPagamento, valorSaldoUsado } ou null se cancelado.
-async function resolverPagamentoSaldo(tel, valor) {
-  const { data: saldoData } = await sb.from('saldo_clientes').select('saldo').eq('telefone', tel).single();
+// Exibe prompt para o operador escolher quanto do saldo interno usar num
+// pagamento. A validação final (saldo suficiente, não passar do total) é
+// feita pelo servidor — aqui só coletamos o valor e fazemos uma checagem
+// rápida de sanidade. Retorna o valor escolhido (número) ou null se
+// cancelado/inválido.
+async function perguntarValorSaldo(tel, valorTotal) {
+  const { data: saldoData } = await api.get(`/usuarios/${tel}/saldo`);
   const saldoDisponivel = parseFloat(saldoData?.saldo) || 0;
   if (saldoDisponivel <= 0) {
     toast(`Saldo insuficiente (${fmtMoeda(saldoDisponivel)}). Altere para Pix.`, true);
     return null;
   }
   const nomeCliente = (allClientes.find(c => c.telefone === tel) || {}).apelido || tel;
-  const sugerido = Math.min(saldoDisponivel, valor).toFixed(2);
+  const sugerido = Math.min(saldoDisponivel, valorTotal).toFixed(2);
   const input = prompt(
-    `Saldo de ${nomeCliente}: ${fmtMoeda(saldoDisponivel)}\nTotal da cota: ${fmtMoeda(valor)}\n\nQuanto usar do saldo?`,
+    `Saldo de ${nomeCliente}: ${fmtMoeda(saldoDisponivel)}\nTotal da cota: ${fmtMoeda(valorTotal)}\n\nQuanto usar do saldo?`,
     sugerido
   );
   if (input === null) return null;
   const digitado = parseFloat((input || '0').replace(',', '.'));
   if (isNaN(digitado) || digitado < 0) { toast('Valor inválido.', true); return null; }
-  if (digitado > saldoDisponivel + 0.005) { toast(`Valor acima do saldo disponível (${fmtMoeda(saldoDisponivel)}).`, true); return null; }
-  if (digitado > valor + 0.005) { toast(`Valor acima do total da cota (${fmtMoeda(valor)}).`, true); return null; }
-  let formaPagamento = 'saldo';
-  let valorSaldoUsado = Math.min(digitado, valor);
-  if (valorSaldoUsado < 0.005) { formaPagamento = 'pix'; valorSaldoUsado = 0; }
-  else if (valorSaldoUsado < valor - 0.005) { formaPagamento = 'misto'; }
-  return { formaPagamento, valorSaldoUsado };
+  return digitado;
 }
 
 async function marcarPago(partId, bolaoId) {
   const p = currentBolaoParts.find(x => x.id === partId);
   if (!p) return;
-  let formaPagamento = p.forma_pagamento || 'pix';
-  let valorSaldoUsado = parseFloat(p.valor_saldo_usado) || 0;
-  if (formaPagamento === 'saldo') {
-    const res = await resolverPagamentoSaldo(p.telefone, p.valor_total);
-    if (res === null) return;
-    ({ formaPagamento, valorSaldoUsado } = res);
+  const body = {};
+  if ((p.forma_pagamento || 'pix') === 'saldo') {
+    const valorDesejado = await perguntarValorSaldo(p.telefone, p.valor_total);
+    if (valorDesejado === null) return;
+    body.valor_saldo_usado_desejado = valorDesejado;
   }
-  const updates = { status_pagamento: 'pago', pago_em: new Date().toISOString(),
-    forma_pagamento: formaPagamento, valor_saldo_usado: valorSaldoUsado };
-  const { error } = await sb.from('participacoes').update(updates).eq('id', partId);
+  const { error } = await api.patch(`/participacoes/${partId}/pagar`, body);
   if (error) { toast('Erro: ' + error.message, true); return; }
-  const bolao = allBoloes.find(b => b.id === bolaoId);
-  await reconciliarExtratoDebito(p.telefone, bolaoId, 'pago', p.valor_total, bolao?.nome, formaPagamento, valorSaldoUsado);
-  if (bolao?.status === 'SORTEADO' && parseFloat(bolao.premio_ganho) > 0) {
-    await distribuirPremio(bolaoId, parseFloat(bolao.premio_ganho));
-  }
   toast('Pagamento confirmado!');
   abrirBolao(bolaoId);
   loadBoloes();
   loadDashboard();
-}
-
-// Garante que o extrato reflita o status/forma de pagamento atual da participação:
-// só gera débito no saldo do cliente quando o pagamento foi feito usando o
-// "saldo" interno dele; pagamento via Pix não mexe no saldo (é só registrado
-// na própria participação).
-// 'pago' + 'saldo' -> existe um lançamento de débito com o valor correto;
-// caso contrário -> nenhum lançamento de débito para esse bolão/cliente.
-async function reconciliarExtratoDebito(telefone, bolaoId, statusPagamento, valorTotal, bolaoNome, formaPagamento, valorSaldoUsado = 0) {
-  const { data: existentes } = await sb.from('extrato').select('id,valor')
-    .eq('telefone', telefone).eq('bolao_id', bolaoId).eq('tipo', 'debito');
-  const existente = (existentes || [])[0];
-  const deveDebitar = statusPagamento === 'pago' && (formaPagamento === 'saldo' || formaPagamento === 'misto');
-  const valorDebito = formaPagamento === 'misto' ? valorSaldoUsado : valorTotal;
-  if (deveDebitar && valorDebito > 0) {
-    if (existente) {
-      if (Math.abs(Number(existente.valor) - Number(valorDebito)) > 0.005) {
-        await sb.from('extrato').update({ valor: valorDebito }).eq('id', existente.id);
-      }
-    } else {
-      await sb.from('extrato').insert({
-        telefone, tipo: 'debito', valor: valorDebito,
-        descricao: `Participação bolão ${bolaoNome || bolaoId}`,
-        bolao_id: bolaoId,
-      });
-    }
-  } else if (existente) {
-    await sb.from('extrato').delete().eq('id', existente.id);
-  }
 }
 
 // ============================================================
@@ -1287,62 +1212,15 @@ async function marcarSorteado(id) {
     if (valorStr === null) return;
     premioTotal = parseFloat(valorStr.replace(',', '.'));
     if (isNaN(premioTotal) || premioTotal <= 0) { toast('Valor de prêmio inválido', true); return; }
-
-    const pagantes = currentBolaoParts.filter(p => p.status_pagamento === 'pago');
-    if (!pagantes.length) {
-      toast('Nenhum participante pago para receber o prêmio', true);
-      return;
-    }
   }
 
-  const { error } = await sb.from('boloes').update({
-    status: 'SORTEADO',
-    premio_ganho: premiado ? premioTotal : 0,
-  }).eq('id', id);
+  const { error } = await api.post(`/boloes/${id}/sortear`, { premiado, premio_total: premioTotal });
   if (error) { toast('Erro: ' + error.message, true); return; }
-
-  if (premiado) {
-    const errMsg = await distribuirPremio(id, premioTotal);
-    if (errMsg) { toast('Erro ao lançar prêmios: ' + errMsg, true); return; }
-  }
 
   toast(premiado ? 'Bolão premiado! Prêmios distribuídos no extrato.' : 'Bolão marcado como sorteado.');
   closeModal('modal-bolao-det');
   loadBoloes();
   loadDashboard();
-}
-
-// Recalcula e substitui (no extrato) os lançamentos de prêmio do bolão,
-// distribuindo proporcionalmente às cotas de cada participante pago
-// (cotas de cortesia do organizador também contam como multiplicador).
-// Retorna uma mensagem de erro (string) em caso de falha, ou undefined.
-async function distribuirPremio(bolaoId, premioTotal) {
-  await sb.from('extrato').delete().eq('bolao_id', bolaoId).eq('tipo', 'premio');
-  if (!premioTotal || premioTotal <= 0) return;
-
-  const { data: parts } = await sb.from('participacoes').select('*').eq('bolao_id', bolaoId);
-  const pagantes = (parts || []).filter(p => p.status_pagamento === 'pago');
-  const totalCotas = pagantes.reduce((s,p) => s + (parseFloat(p.cotas) || 0), 0);
-  if (!pagantes.length || totalCotas <= 0) return;
-
-  const bolao = allBoloes.find(b => b.id === bolaoId);
-  let somaDistribuida = 0;
-  const lancamentos = pagantes.map((p, idx) => {
-    let valor;
-    if (idx === pagantes.length - 1) {
-      valor = Math.round((premioTotal - somaDistribuida) * 100) / 100;
-    } else {
-      valor = Math.round(premioTotal * (parseFloat(p.cotas) / totalCotas) * 100) / 100;
-      somaDistribuida += valor;
-    }
-    return {
-      telefone: p.telefone, tipo: 'premio', valor,
-      descricao: `Prêmio - ${bolao?.nome || 'Bolão'} (Concurso #${bolao?.concurso || '—'})`,
-      bolao_id: bolaoId,
-    };
-  });
-  const { error } = await sb.from('extrato').insert(lancamentos);
-  if (error) return error.message;
 }
 
 // ============================================================
@@ -1383,12 +1261,12 @@ async function salvarEdicaoBolao() {
   if (!nome) { toast('Informe o nome do bolão', true); return; }
   if (!concurso) { toast('Informe o número do concurso', true); return; }
   if (!data) { toast('Informe a data do sorteio', true); return; }
-  const { error } = await sb.from('boloes').update({
+  const { error } = await api.put(`/boloes/${id}`, {
     nome, loteria, tipo_sorteio: tipoSorteio,
     concurso: parseInt(concurso), data_sorteio: data,
     valor_cota_inteira: valor, valor_cota_meia: meiaCota, quantidade_cotas: cotas,
     premio_ganho: premio, custo, observacao: obs || null,
-  }).eq('id', id);
+  });
   if (error) { toast('Erro: ' + error.message, true); return; }
   toast('Bolão atualizado!');
   closeModal('modal-editar-bolao');
@@ -1417,11 +1295,8 @@ async function confirmarExcluirBolao(id) {
   }
   if (!confirm(`Tem certeza? Excluir "${nomeBolao}" definitivamente?`)) return;
 
-  const { error: errExt } = await sb.from('extrato').delete().eq('bolao_id', id);
-  if (errExt) { toast('Erro ao excluir extrato: ' + errExt.message, true); return; }
-
-  const { error: errBol } = await sb.from('boloes').delete().eq('id', id);
-  if (errBol) { toast('Erro ao excluir bolão: ' + errBol.message, true); return; }
+  const { error } = await api.delete(`/boloes/${id}`);
+  if (error) { toast('Erro ao excluir bolão: ' + error.message, true); return; }
 
   toast('Bolão excluído.');
   closeModal('modal-bolao-det');
@@ -1529,57 +1404,41 @@ async function adicionarParticipante() {
   if (!tel) { toast('Selecione um cliente', true); return; }
   const isOrganizador = tel === TELEFONE_ORGANIZADOR;
   const cotas   = parseFloat(document.getElementById('ap-cotas').value) || 0;
-  let valor     = parseFloat(document.getElementById('ap-valor').value) || 0;
-  let status    = document.getElementById('ap-status').value;
-  let formaPagamento = document.getElementById('ap-forma-pagamento').value;
-  if (isOrganizador) { valor = 0; status = 'pago'; formaPagamento = 'pix'; }
+  const status    = document.getElementById('ap-status').value;
+  const formaPagamento = document.getElementById('ap-forma-pagamento').value;
   if (cotas <= 0) { toast('Informe a quantidade de cotas (mín. 0,5)', true); return; }
-  if (!isOrganizador && valor <= 0) { toast('Informe o valor total', true); return; }
-  const bolaoCheck = allBoloes.find(b => b.id === bolaoId);
-  if (bolaoCheck?.quantidade_cotas) {
-    const somaAtual = currentBolaoParts.reduce((s,p) => s + (parseFloat(p.cotas) || 0), 0);
-    if (somaAtual + cotas > bolaoCheck.quantidade_cotas + 1e-9) {
-      toast(`Limite de cotas excedido (${somaAtual}/${bolaoCheck.quantidade_cotas} já preenchidas)`, true);
-      return;
-    }
-  }
-  let valorSaldoUsado = 0;
+
+  // valor_total, posição e limite de cotas são recalculados/validados no
+  // servidor (não confiamos mais no valor/posição calculados no client).
+  const body = { telefone: tel, cotas, status_pagamento: status, forma_pagamento: formaPagamento };
   if (!isOrganizador && formaPagamento === 'saldo' && status === 'pago') {
-    const res = await resolverPagamentoSaldo(tel, valor);
-    if (res === null) return;
-    ({ formaPagamento, valorSaldoUsado } = res);
+    const valorPreview = calcularValorPorCotas(cotas, document.getElementById('ap-valor-cota').value, document.getElementById('ap-valor-meia').value);
+    const valorDesejado = await perguntarValorSaldo(tel, valorPreview);
+    if (valorDesejado === null) return;
+    body.valor_saldo_usado_desejado = valorDesejado;
   }
-  const maxPosicao = currentBolaoParts.reduce((m,p) => Math.max(m, p.posicao || 0), 1);
-  const posicao = maxPosicao + 1;
-  const { data: newPart, error } = await sb.from('participacoes').insert({
-    bolao_id: bolaoId, telefone: tel, cotas, valor_total: valor,
-    status_pagamento: status, forma_pagamento: formaPagamento,
-    pago_em: status === 'pago' ? new Date().toISOString() : null,
-    posicao, valor_saldo_usado: valorSaldoUsado,
-  }).select('id').single();
+
+  const { data: newPart, error } = await api.post(`/boloes/${bolaoId}/participacoes`, body);
   if (error) { toast('Erro: ' + error.message, true); return; }
-  const bolao = allBoloes.find(b => b.id === bolaoId);
-  await reconciliarExtratoDebito(tel, bolaoId, status, valor, bolao?.nome, formaPagamento, valorSaldoUsado);
   toast('Participante adicionado!');
   closeModal('modal-add-part');
-  if (isOrganizador || status !== 'pago') {
+  if (isOrganizador || newPart.status_pagamento !== 'pago') {
     abrirBolao(bolaoId);
     loadBoloes();
     loadDashboard();
   } else {
-    const { data: saldoData } = await sb.from('saldo_clientes').select('saldo').eq('telefone', tel).single();
-    const saldo = parseFloat(saldoData?.saldo) || 0;
+    const bolao = allBoloes.find(b => b.id === bolaoId);
     const nomeCliente = (allClientes.find(c=>c.telefone===tel)||{}).apelido || tel;
     document.getElementById('comp-nome').textContent = nomeCliente;
     document.getElementById('comp-link').href = linkComprovanteWhatsApp(bolao, {
-      telefone: tel, cotas, posicao, saldo,
-      pago_em: new Date().toISOString(),
-      forma_pagamento: formaPagamento,
-      valor_total: valor,
-      valor_saldo_usado: valorSaldoUsado,
+      telefone: tel, cotas: newPart.cotas, posicao: newPart.posicao, saldo: newPart.saldo,
+      pago_em: newPart.pago_em,
+      forma_pagamento: newPart.forma_pagamento,
+      valor_total: newPart.valor_total,
+      valor_saldo_usado: newPart.valor_saldo_usado,
     });
     comprovanteBolaoId = bolaoId;
-    comprovantePartId = newPart?.id || null;
+    comprovantePartId = newPart.id;
     openModal('modal-comprovante');
   }
 }
@@ -1604,7 +1463,7 @@ async function marcarComprovanteEnviado(partId) {
   const idx = currentBolaoParts.findIndex(p => p.id === partId);
   if (idx !== -1) currentBolaoParts[idx] = { ...currentBolaoParts[idx], comprovante_enviado_em: agora };
   renderParticipantesLista(currentPartFilter);
-  await sb.from('participacoes').update({ comprovante_enviado_em: agora }).eq('id', partId);
+  await api.patch(`/participacoes/${partId}/comprovante`);
 }
 
 function renderParticipantesLista(filter) {
@@ -1702,39 +1561,15 @@ async function salvarEdicaoPart() {
   const id      = document.getElementById('epart-id').value;
   const bolaoId = document.getElementById('epart-bolao-id').value;
   const cotas   = parseFloat(document.getElementById('epart-cotas').value) || 0;
-  const isOrganizador = document.getElementById('epart-organizador').value === '1';
-  let valor     = parseFloat(document.getElementById('epart-valor').value) || 0;
-  let status    = document.getElementById('epart-status').value;
-  let formaPagamento = document.getElementById('epart-forma-pagamento').value;
-  if (isOrganizador) { valor = 0; status = 'pago'; formaPagamento = 'pix'; }
-  const p = currentBolaoParts.find(x => x.id === id);
-  if (!p) return;
+  const status    = document.getElementById('epart-status').value;
+  const formaPagamento = document.getElementById('epart-forma-pagamento').value;
   if (cotas <= 0) { toast('Informe a quantidade de cotas (mín. 0,5)', true); return; }
-  if (!isOrganizador && valor <= 0) { toast('Informe o valor total', true); return; }
-  const bolaoCheck = allBoloes.find(b => b.id === bolaoId);
-  if (bolaoCheck?.quantidade_cotas) {
-    const somaOutros = currentBolaoParts.filter(x => x.id !== id).reduce((s,x) => s + (parseFloat(x.cotas) || 0), 0);
-    if (somaOutros + cotas > bolaoCheck.quantidade_cotas + 1e-9) {
-      toast(`Limite de cotas excedido (${somaOutros}/${bolaoCheck.quantidade_cotas} já preenchidas pelos demais)`, true);
-      return;
-    }
-  }
 
-  const updates = { cotas, valor_total: valor, status_pagamento: status, forma_pagamento: formaPagamento };
-  if (status === 'pago' && !p.pago_em) updates.pago_em = new Date().toISOString();
-  if (status === 'pendente') updates.pago_em = null;
-
-  const { error } = await sb.from('participacoes').update(updates).eq('id', id);
+  // valor_total, pago_em, limite de cotas, reconciliação de débito e
+  // redistribuição de prêmio (se o bolão já estiver sorteado e premiado)
+  // são todos resolvidos pelo servidor.
+  const { error } = await api.put(`/participacoes/${id}`, { cotas, status_pagamento: status, forma_pagamento: formaPagamento });
   if (error) { toast('Erro: ' + error.message, true); return; }
-
-  const bolao = allBoloes.find(b => b.id === bolaoId);
-  await reconciliarExtratoDebito(p.telefone, bolaoId, status, valor, bolao?.nome, formaPagamento);
-
-  // Se o bolão já foi sorteado e premiado, redistribui o prêmio com as
-  // cotas/status atualizados (item 3: alteração de cotas reflete no prêmio).
-  if (bolao?.status === 'SORTEADO' && parseFloat(bolao.premio_ganho) > 0) {
-    await distribuirPremio(bolaoId, parseFloat(bolao.premio_ganho));
-  }
 
   toast('Participação atualizada!');
   closeModal('modal-editar-part');
@@ -1759,17 +1594,8 @@ async function excluirParticipacao(partId, bolaoId) {
   );
   if (!ok) return;
 
-  const { error: errExt } = await sb.from('extrato').delete().eq('bolao_id', bolaoId).eq('telefone', p.telefone);
-  if (errExt) { toast('Erro ao limpar extrato: ' + errExt.message, true); return; }
-
-  const { error } = await sb.from('participacoes').delete().eq('id', partId);
+  const { error } = await api.delete(`/participacoes/${partId}`);
   if (error) { toast('Erro: ' + error.message, true); return; }
-
-  // Se o bolão já foi sorteado e premiado, redistribui o prêmio sem este participante.
-  const bolao = allBoloes.find(b => b.id === bolaoId);
-  if (bolao?.status === 'SORTEADO' && parseFloat(bolao.premio_ganho) > 0) {
-    await distribuirPremio(bolaoId, parseFloat(bolao.premio_ganho));
-  }
 
   toast('Participante removido do bolão!');
   abrirBolao(bolaoId);
@@ -1782,11 +1608,9 @@ async function excluirParticipacao(partId, bolaoId) {
 // ============================================================
 async function loadClientes() {
   document.getElementById('clientes-list').innerHTML = '<div class="loading"><div class="spinner"></div>Carregando...</div>';
-  const { data, error } = await sb.from('usuarios').select('*');
+  const { data, error } = await api.get('/usuarios');
   if (error) { toast('Erro ao carregar clientes', true); return; }
-  allClientes = (data || []).sort((a, b) =>
-    (a.apelido || a.nome_completo || '').localeCompare(b.apelido || b.nome_completo || '', 'pt-BR', { sensitivity: 'base' })
-  );
+  allClientes = data.usuarios; // já vem ordenado por apelido/nome do servidor
   renderClientes(allClientes);
 }
 
@@ -1799,19 +1623,14 @@ function filterClientes() {
   ));
 }
 
-async function renderClientes(list) {
+function renderClientes(list) {
   const container = document.getElementById('clientes-list');
   if (!list.length) {
     container.innerHTML = '<div class="loading">Nenhum cliente encontrado.</div>';
     return;
   }
-  // busca saldos
-  const { data: saldoData } = await sb.from('saldo_clientes').select('*');
-  const saldoMap = {};
-  (saldoData||[]).forEach(s => saldoMap[s.telefone] = s.saldo);
-
   container.innerHTML = list.map(c => {
-    const saldo = saldoMap[c.telefone] || 0;
+    const saldo = c.saldo || 0;
     const saldoCls = saldo >= 0 ? 'saldo-positive' : 'saldo-negative';
     return `
       <div class="card" onclick="abrirExtrato('${c.telefone}','${c.apelido||c.nome_completo}')">
@@ -1848,7 +1667,7 @@ async function criarCliente() {
   const email        = document.getElementById('nc-email').value.trim();
   if (!nomeCompleto) { toast('Informe o nome completo', true); return; }
   if (!telefone)     { toast('Informe o telefone', true); return; }
-  const { error } = await sb.from('usuarios').insert({
+  const { error } = await api.post('/usuarios', {
     telefone, nome_completo: nomeCompleto, apelido: apelido || null, email: email || null,
   });
   if (error) { toast('Erro: ' + error.message, true); return; }
@@ -1876,10 +1695,10 @@ async function salvarEdicaoCliente() {
   const email        = document.getElementById('ec-email').value.trim();
   if (!nomeCompleto) { toast('Informe o nome completo', true); return; }
   if (!telefone)     { toast('Informe o telefone', true); return; }
-  const { error } = await sb.from('usuarios').update({
+  const { error } = await api.put(`/usuarios/${telefoneOriginal}`, {
     nome_completo: nomeCompleto, apelido: apelido || null,
     telefone, email: email || null,
-  }).eq('telefone', telefoneOriginal);
+  });
   if (error) { toast('Erro: ' + error.message, true); return; }
   toast('Cliente atualizado!');
   closeModal('modal-editar-cliente');
@@ -1897,43 +1716,13 @@ async function abrirExtrato(telefone, nome) {
   const cliente = allClientes.find(c => c.telefone === telefone) || {};
   const nomeCompleto = cliente.nome_completo || '';
 
-  const [extratoRes, saldoRes, partsRes] = await Promise.all([
-    sb.from('extrato').select('*').eq('telefone', telefone).order('criado_em', {ascending: false}).limit(50),
-    sb.from('saldo_clientes').select('*').eq('telefone', telefone).single(),
-    sb.from('participacoes').select('*, boloes(nome,concurso)').eq('telefone', telefone).eq('status_pagamento','pago'),
-  ]);
-
-  const extratoItems = extratoRes.data || [];
-  const saldo   = saldoRes.data?.saldo || 0;
+  const { data, error } = await api.get(`/usuarios/${telefone}/extrato`);
+  if (error) { toast('Erro ao carregar extrato: ' + error.message, true); closeModal('modal-extrato'); return; }
+  const saldo = data.saldo || 0;
   const saldoCls = saldo >= 0 ? 'text-green' : 'text-red';
-
-  // Pagamentos via Pix não geram débito no extrato (não afetam o saldo), então
-  // são derivados das participações pagas para aparecer no histórico do cliente.
-  const debitoBolaoIds = new Set(extratoItems.filter(e => e.tipo === 'debito' && e.bolao_id).map(e => e.bolao_id));
-  const pagamentosPix = (partsRes.data || [])
-    .filter(p => {
-      const forma = p.forma_pagamento || 'pix';
-      if (forma === 'saldo') return false;
-      if (parseFloat(p.valor_total) <= 0) return false;
-      if (forma === 'misto') return parseFloat(p.valor_total) - parseFloat(p.valor_saldo_usado || 0) > 0.005;
-      return !debitoBolaoIds.has(p.bolao_id);
-    })
-    .map(p => {
-      const valorPix = p.forma_pagamento === 'misto'
-        ? parseFloat(p.valor_total) - parseFloat(p.valor_saldo_usado || 0)
-        : parseFloat(p.valor_total);
-      return {
-        tipo: 'pix',
-        valor: valorPix,
-        descricao: `Pagamento Pix - ${p.boloes?.nome || 'Bolão'}${p.boloes?.concurso ? ' #' + p.boloes.concurso : ''}`,
-        criado_em: p.pago_em || p.criado_em,
-        naoAfetaSaldo: true,
-      };
-    });
-
-  const items = [...extratoItems, ...pagamentosPix]
-    .sort((a, b) => new Date(b.criado_em) - new Date(a.criado_em))
-    .slice(0, 50);
+  // já mesclado (extrato + pagamentos Pix sintéticos, que não geram débito
+  // pois não afetam o saldo) e paginado pelo servidor.
+  const items = data.items;
 
   const extIcons = { credito:'💰', debito:'📤', premio:'🏆', saque:'🏧', pix:'📱' };
   const extCls   = { credito:'ext-credito', debito:'ext-debito', premio:'ext-premio', saque:'ext-saque', pix:'ext-pix' };
@@ -1990,7 +1779,7 @@ async function criarLancamento() {
   const valor = parseFloat(document.getElementById('lanc-valor').value) || 0;
   const desc  = document.getElementById('lanc-desc').value.trim();
   if (!valor) { toast('Informe o valor', true); return; }
-  const { error } = await sb.from('extrato').insert({ telefone: tel, tipo, valor, descricao: desc || null });
+  const { error } = await api.post(`/usuarios/${tel}/extrato`, { tipo, valor, descricao: desc || null });
   if (error) { toast('Erro: ' + error.message, true); return; }
   toast('Lançamento registrado!');
   closeModal('modal-lancamento');
@@ -2001,7 +1790,7 @@ async function criarLancamento() {
 async function excluirLancamento(id, telefone) {
   const nome = (allClientes.find(c => c.telefone === telefone) || {}).apelido || telefone;
   if (!confirm(`Excluir este lançamento do extrato de ${nome}?\n\nEsta ação afeta o saldo do cliente e não pode ser desfeita.`)) return;
-  const { error } = await sb.from('extrato').delete().eq('id', id);
+  const { error } = await api.delete(`/extrato/${id}`);
   if (error) { toast('Erro: ' + error.message, true); return; }
   toast('Lançamento removido.');
   abrirExtrato(telefone, nome);
@@ -2012,11 +1801,9 @@ async function excluirLancamento(id, telefone) {
 // ============================================================
 async function loadSaques() {
   document.getElementById('saques-list').innerHTML = '<div class="loading"><div class="spinner"></div>Carregando...</div>';
-  const { data, error } = await sb.from('saques').select('*')
-    .eq('status', currentSaquesFilter)
-    .order('criado_em', {ascending: false});
+  const { data, error } = await api.get(`/saques?status=${currentSaquesFilter}`);
   if (error) { toast('Erro ao carregar saques', true); return; }
-  const items = data || [];
+  const items = data.saques;
   const container = document.getElementById('saques-list');
   if (!items.length) {
     container.innerHTML = '<div class="loading">Nenhum saque encontrado.</div>';
@@ -2037,11 +1824,11 @@ async function loadSaques() {
           <div style="font-size:1.2rem;font-weight:800;color:var(--yellow)">${fmtMoeda(s.valor)}</div>
           ${s.status === 'pendente' ? `
             <div style="display:flex;gap:6px">
-              <button class="btn btn-success btn-sm" onclick="processarSaque('${s.id}','aprovado','${s.telefone}',${s.valor})">Aprovar</button>
-              <button class="btn btn-sm" style="background:var(--red);color:#fff" onclick="processarSaque('${s.id}','rejeitado','${s.telefone}',${s.valor})">Rejeitar</button>
+              <button class="btn btn-success btn-sm" onclick="processarSaque('${s.id}','aprovado')">Aprovar</button>
+              <button class="btn btn-sm" style="background:var(--red);color:#fff" onclick="processarSaque('${s.id}','rejeitado')">Rejeitar</button>
             </div>` :
           s.status === 'aprovado' ? `
-            <button class="btn btn-primary btn-sm" onclick="processarSaque('${s.id}','pago','${s.telefone}',${s.valor})">Marcar Pago</button>
+            <button class="btn btn-primary btn-sm" onclick="processarSaque('${s.id}','pago')">Marcar Pago</button>
           ` : ''}
         </div>
         ${s.observacao ? `<div style="font-size:.75rem;color:var(--muted);margin-top:6px">${s.observacao}</div>` : ''}
@@ -2057,16 +1844,9 @@ function filterSaques(status) {
   loadSaques();
 }
 
-async function processarSaque(id, novoStatus, telefone, valor) {
-  const updates = { status: novoStatus, processado_em: new Date().toISOString() };
-  const { error } = await sb.from('saques').update(updates).eq('id', id);
+async function processarSaque(id, novoStatus) {
+  const { error } = await api.patch(`/saques/${id}`, { status: novoStatus });
   if (error) { toast('Erro: ' + error.message, true); return; }
-  // Se pago, lança no extrato
-  if (novoStatus === 'pago') {
-    await sb.from('extrato').insert({
-      telefone, tipo: 'saque', valor, descricao: 'Saque processado'
-    });
-  }
   toast(`Saque ${novoStatus}!`);
   loadSaques();
   loadDashboard();
@@ -2087,8 +1867,8 @@ async function solicitarSaque() {
   const pix   = document.getElementById('sq-pix').value.trim();
   const obs   = document.getElementById('sq-obs').value.trim();
   if (!valor) { toast('Informe o valor', true); return; }
-  const { error } = await sb.from('saques').insert({
-    telefone: tel, valor, chave_pix: pix || null, observacao: obs || null, status: 'pendente'
+  const { error } = await api.post('/saques', {
+    telefone: tel, valor, chave_pix: pix || null, observacao: obs || null,
   });
   if (error) { toast('Erro: ' + error.message, true); return; }
   toast('Saque solicitado!');
@@ -2098,52 +1878,20 @@ async function solicitarSaque() {
 }
 
 // ============================================================
-// AUTH
-// ============================================================
-async function doLogin() {
-  const email    = document.getElementById('login-email').value.trim();
-  const password = document.getElementById('login-password').value;
-  const errEl    = document.getElementById('login-error');
-  errEl.textContent = '';
-  if (!email || !password) { errEl.textContent = 'Preencha e-mail e senha'; return; }
-  const { error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) { errEl.textContent = 'E-mail ou senha inválidos'; return; }
-  showApp();
-}
-
-async function doLogout() {
-  await sb.auth.signOut();
-  document.getElementById('app').style.display = 'none';
-  document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('login-email').value = '';
-  document.getElementById('login-password').value = '';
-}
-
-function showApp() {
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  init();
-}
-
-// Permite Enter para logar
-document.getElementById('login-password').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doLogin();
-});
-
-// ============================================================
 // INIT
 // ============================================================
+// Login é resolvido pelo Cloudflare Access na borda, antes desta página
+// carregar (ver botão "Sair" no header, que aponta para
+// /cdn-cgi/access/logout). Se este script está rodando, o operador já está
+// autenticado — não há mais tela de login nem sessão para checar aqui.
 async function init() {
   // pré-carrega clientes para uso em outros lugares
-  const { data } = await sb.from('usuarios').select('telefone,nome_completo,apelido');
-  allClientes = data || [];
+  const { data, error } = await api.get('/usuarios');
+  allClientes = error ? [] : data.usuarios;
   loadDashboard();
 }
 
-(async function checkSession() {
-  const { data: { session } } = await sb.auth.getSession();
-  if (session) showApp();
-})();
+init();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));

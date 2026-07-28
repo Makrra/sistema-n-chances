@@ -1,0 +1,59 @@
+name = "n-chances"
+main = "src/index.js"
+compatibility_date = "2026-07-26"
+
+# ============================================================
+# Default (sem --env): usado só para dev local (wrangler dev --local).
+# database_id é um placeholder — dev local não toca a conta real.
+# ============================================================
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "n-chances-db"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+# ============================================================
+# Staging: wrangler deploy --env staging
+# Worker fica em "n-chances-staging" (nome derivado automaticamente).
+# ============================================================
+[env.staging.assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "n-chances-db-staging"
+database_id = "8580e3e7-9cbf-47d1-8389-893a485e97e2"
+
+# custom_domain = true faz o wrangler provisionar e gerenciar o registro DNS
+# e o certificado automaticamente no deploy (exige a zona nchances.com.br
+# ativa na Cloudflare primeiro).
+[[env.staging.routes]]
+pattern = "staging.nchances.com.br"
+custom_domain = true
+
+# ============================================================
+# Produção: wrangler deploy --env production
+# Worker fica em "n-chances-production" (nome derivado automaticamente).
+# ============================================================
+[env.production.assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "n-chances-db-prod"
+database_id = "e89f109f-b65b-4cf7-a8c8-d84cd4e92bd5"
+
+[[env.production.routes]]
+pattern = "nchances.com.br"
+custom_domain = true

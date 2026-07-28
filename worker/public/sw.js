@@ -1,4 +1,4 @@
-const CACHE = 'n-chances-v2';
+const CACHE = 'n-chances-v3';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -18,8 +18,10 @@ self.addEventListener('activate', (e) => {
 // Network-first: sempre busca a versão mais recente; usa o cache só se
 // estiver offline. Evita o app ficar "travado" numa versão antiga.
 self.addEventListener('fetch', (e) => {
-  // Supabase requests sempre vão para a rede (dados precisam ser atuais)
-  if (e.request.url.includes('supabase.co')) return;
+  // Nunca cachear mutações (a Cache API só aceita GET) nem chamadas de API —
+  // os dados da API sempre precisam vir direto da rede, nunca do cache.
+  if (e.request.method !== 'GET') return;
+  if (new URL(e.request.url).pathname.startsWith('/api/')) return;
 
   e.respondWith(
     fetch(e.request)
