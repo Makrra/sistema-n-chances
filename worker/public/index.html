@@ -833,7 +833,9 @@ function montarMensagemComprovante(bolao, cotas, posicao, saldo, part = {}) {
   // não do campo "nome" (texto livre, pode estar desatualizado/inconsistente).
   const loteriaLabel = LOTERIA_LABEL[bolao.loteria] || (bolao.loteria || '').toUpperCase();
   const tipoSorteioLabel = TIPO_SORTEIO_LABEL[bolao.tipo_sorteio] || '';
-  const tituloBolaо = [loteriaLabel, tipoSorteioLabel].filter(Boolean).join(' ') + ` #${bolao.concurso}`;
+  // Sem "#concurso" aqui — ele já aparece mais adiante na mesma frase
+  // ("no sorteio do concurso *N*"), ficaria repetido.
+  const tituloBolaо = [loteriaLabel, tipoSorteioLabel].filter(Boolean).join(' ');
   const jogos = (bolao.jogos_descricao||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>`*> ${l}*`).join('\n');
   const saldoFmt = 'R$ ' + parseFloat(saldo||0).toFixed(2).replace('.', ',');
 
@@ -855,10 +857,10 @@ function montarMensagemComprovante(bolao, cotas, posicao, saldo, part = {}) {
 
   return `Estou enviando essa mensagem como prova que você *adquiriu junto a Neydson Medeiros*:\n\n`
     + `*${descreverCotas(cotas)} do BOLÃO* abaixo: \n\n`
+    + (bolao.codigo ? `*${bolao.codigo}*\n\n` : '')
     + `*${tituloBolaо}* onde você estará concorrendo a uma premiação de *${bolao.premio_estimado || '—'}* no sorteio do concurso *${bolao.concurso}*.`
     + (jogos ? ` Com os seguintes jogos:\n\n${jogos}\n\n` : '\n\n')
     + `O sorteio ocorrerá no dia *${fmtDataExtenso(bolao.data_sorteio)}*. Estamos em *${bolao.quantidade_cotas} cotistas*.\n\n`
-    + (bolao.codigo ? `Código do Bolão: *${bolao.codigo}*\n\n` : '')
     + `Posição Lista: *${posicao || '—'}*\n\n`
     + `Saldo: *${saldoFmt}*${pagamentoSection}\n\n`
     + `> *Obs.:* Se o bolão for premiado, o valor é dividido proporcionalmente entre todos os cotistas — quem adquiriu mais cotas recebe uma parte maior do prêmio.`;
