@@ -930,58 +930,87 @@ async function loadDashboard() {
   renderCaixa();
 }
 
-// Card de ranking em mini-barras horizontais: rows = [{label, valor, display}],
-// ordenado do maior pro menor. O #1 vem em destaque (barra cheia + negrito),
-// os demais em opacidade reduzida (mesmo tom, só pra dar contexto/comparação).
-function renderRankingCard(titulo, rows) {
-  if (!rows.length) {
+// Pódio (top 3 em destaque, avatar + medalha) + lista simples pro resto
+// (4º/5º). Visual bem diferente da tabela de loterias, de propósito —
+// são dados de natureza diferente (pessoas vs. categorias).
+function renderPodio(titulo, itens) {
+  if (!itens.length) {
     return `
       <div class="card" style="margin-bottom:0">
         <div class="card-sub" style="margin-bottom:4px">${titulo}</div>
         <div class="card-sub">Ainda sem dados</div>
       </div>`;
   }
-  const max = Math.max(...rows.map(r => r.valor)) || 1;
+  const medalhas = ['🥇', '🥈', '🥉'];
+  const ordemPodio = [1, 0, 2].filter(i => itens[i]); // exibe 2º-1º-3º, pulando quem não existe
+  const podioHtml = ordemPodio.map(i => {
+    const it = itens[i];
+    const p = i === 0;
+    return `
+      <div style="text-align:center;min-width:0">
+        <div style="font-size:${p ? '1.6rem' : '1.15rem'}">${medalhas[i]}</div>
+        <div class="avatar" style="width:${p ? '56px' : '42px'};height:${p ? '56px' : '42px'};margin:0 auto 6px;font-size:${p ? '1.1rem' : '.8rem'}">${initials(it.nome)}</div>
+        <div style="font-size:${p ? '.85rem' : '.72rem'};font-weight:${p ? '800' : '600'};max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.nome}</div>
+        <div style="font-size:.68rem;color:${p ? 'var(--green)' : 'var(--muted)'}">${fmtMoeda(it.total)}</div>
+      </div>`;
+  }).join('');
+  const restoHtml = itens.slice(3).map((it, idx) => `
+    <div style="display:flex;justify-content:space-between;gap:8px;font-size:.75rem;color:var(--muted);padding:3px 0">
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${idx + 4}º ${it.nome}</span>
+      <span style="flex-shrink:0">${fmtMoeda(it.total)}</span>
+    </div>`).join('');
   return `
     <div class="card" style="margin-bottom:0">
-      <div class="card-sub" style="margin-bottom:10px">${titulo}</div>
-      ${rows.map((r, i) => `
-        <div style="display:flex;align-items:center;gap:7px;${i < rows.length - 1 ? 'margin-bottom:8px' : ''}">
-          <div style="width:14px;flex-shrink:0;font-size:.65rem;color:var(--muted);text-align:right">${i + 1}</div>
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;justify-content:space-between;gap:8px;font-size:${i === 0 ? '.82rem' : '.74rem'};margin-bottom:3px">
-              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:${i === 0 ? '700' : '400'}">${r.label}</span>
-              <span style="color:var(--muted);flex-shrink:0">${r.display}</span>
-            </div>
-            <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
-              <div style="height:100%;width:${(r.valor / max * 100).toFixed(1)}%;background:var(--accent);opacity:${i === 0 ? '1' : '.4'};border-radius:3px"></div>
-            </div>
-          </div>
-        </div>
-      `).join('')}
+      <div class="card-sub" style="margin-bottom:12px">${titulo}</div>
+      <div style="display:flex;align-items:flex-end;justify-content:center;gap:16px;${restoHtml ? 'margin-bottom:12px' : ''}">
+        ${podioHtml}
+      </div>
+      ${restoHtml ? `<div style="border-top:1px solid var(--border);padding-top:6px">${restoHtml}</div>` : ''}
+    </div>`;
+}
+
+// Tabela comparativa: uma linha por loteria, uma coluna por métrica —
+// junta o que antes eram 3 cards de ranking repetidos num só elemento.
+function renderTabelaLoterias(titulo, loterias) {
+  if (!loterias.length) {
+    return `
+      <div class="card" style="margin-bottom:0">
+        <div class="card-sub" style="margin-bottom:4px">${titulo}</div>
+        <div class="card-sub">Ainda sem dados</div>
+      </div>`;
+  }
+  const linhas = loterias.map(l => `
+    <tr>
+      <td style="padding:7px 6px 7px 0;font-size:.72rem;white-space:nowrap">${LOTERIA_LABEL[l.loteria] || l.loteria.toUpperCase()}</td>
+      <td style="padding:7px 6px;font-size:.72rem;text-align:right;color:var(--green);white-space:nowrap">${fmtMoeda(l.faturamento)}</td>
+      <td style="padding:7px 6px;font-size:.72rem;text-align:right;white-space:nowrap">${fmtMoeda(l.ticket_medio)}</td>
+      <td style="padding:7px 0 7px 6px;font-size:.72rem;text-align:right;white-space:nowrap">${l.media_cotas.toFixed(1)}</td>
+    </tr>
+  `).join('');
+  return `
+    <div class="card" style="margin-bottom:0">
+      <div class="card-sub" style="margin-bottom:8px">${titulo}</div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border)">
+              <th style="padding:0 6px 6px 0;text-align:left;font-size:.62rem;color:var(--muted);font-weight:600">LOTERIA</th>
+              <th style="padding:0 6px 6px;text-align:right;font-size:.62rem;color:var(--muted);font-weight:600">FATUR.</th>
+              <th style="padding:0 6px 6px;text-align:right;font-size:.62rem;color:var(--muted);font-weight:600">TICKET</th>
+              <th style="padding:0 0 6px 6px;text-align:right;font-size:.62rem;color:var(--muted);font-weight:600">COTAS</th>
+            </tr>
+          </thead>
+          <tbody>${linhas}</tbody>
+        </table>
+      </div>
     </div>`;
 }
 
 // Indicadores de negócio (all-time, sem filtro de período) que substituem
 // a antiga lista de bolões no Dashboard — essa lista já existe na aba "Bolões".
 function renderInsights(insights) {
-  const nomeLoteria = l => LOTERIA_LABEL[l] || (l || '').toUpperCase();
-
-  const html = [
-    renderRankingCard('🏆 MELHOR CLIENTE (TOP 5)', insights.melhor_clientes.map(c => ({
-      label: c.nome, valor: c.total, display: fmtMoeda(c.total),
-    }))),
-    renderRankingCard('📈 LOTERIA MAIS VENDIDA', insights.loteria_mais_vendida.map(l => ({
-      label: nomeLoteria(l.loteria), valor: l.total, display: fmtMoeda(l.total),
-    }))),
-    renderRankingCard('💰 TICKET MAIS CARO (média por loteria)', insights.loteria_ticket_mais_caro.map(l => ({
-      label: nomeLoteria(l.loteria), valor: l.media_valor_cota, display: fmtMoeda(l.media_valor_cota),
-    }))),
-    renderRankingCard('🎟️ BOLÕES COM MAIS COTAS (média por loteria)', insights.loteria_mais_cotas.map(l => ({
-      label: nomeLoteria(l.loteria), valor: l.media_cotas, display: l.media_cotas.toFixed(1),
-    }))),
-  ].join('');
-
+  const html = renderPodio('🏆 MELHOR CLIENTE', insights.melhor_clientes)
+    + renderTabelaLoterias('📊 COMPARATIVO DE LOTERIAS', insights.loterias);
   document.getElementById('dash-insights').innerHTML = `
     <div style="display:flex;flex-direction:column;gap:10px">${html}</div>
   `;
