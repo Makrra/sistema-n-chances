@@ -4,6 +4,7 @@ import { fromCotasMeias } from './cotas.js';
 export function serializeBolao(row) {
   return {
     id: row.id,
+    codigo: row.codigo,
     nome: row.nome,
     loteria: row.loteria,
     tipo_sorteio: row.tipo_sorteio,

@@ -14,6 +14,31 @@ import { toCentavos, fromCentavos } from './money.js';
 
 export const TELEFONE_ORGANIZADOR = '558499119370';
 
+// Sigla usada no código único do bolão (ex: QN-70750001).
+export const SIGLA_LOTERIA = {
+  'mega-sena': 'MS',
+  'lotofacil': 'LF',
+  'quina': 'QN',
+  'lotomania': 'LM',
+  'dupla-sena': 'DS',
+  'timemania': 'TM',
+  'outro': 'OT',
+};
+
+// Código único do bolão: {SIGLA}-{concurso}{sequência de 4 dígitos}. A
+// sequência reinicia por combinação loteria+concurso (dois bolões do mesmo
+// sorteio, ex. um principal e um extra, ficam 0001/0002). Leitura prévia
+// segura: é sempre um bolão NOVO sendo criado, não há mutação prévia nesta
+// mesma requisição da qual isso dependa.
+export async function gerarCodigoBolao(db, loteria, concurso) {
+  const sigla = SIGLA_LOTERIA[loteria] || 'OT';
+  const row = await db.prepare(
+    `SELECT COUNT(*) AS n FROM boloes WHERE loteria = ? AND concurso = ?`
+  ).bind(loteria, concurso).first();
+  const seq = String((row?.n || 0) + 1).padStart(4, '0');
+  return `${sigla}-${concurso}${seq}`;
+}
+
 export function recomputeSaldoStmt(db, telefone) {
   return db.prepare(`
     UPDATE usuarios SET saldo_centavos = (

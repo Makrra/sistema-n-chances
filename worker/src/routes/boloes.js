@@ -6,7 +6,7 @@ import { toCotasMeias, valorPorCotasMeias } from '../lib/cotas.js';
 import { serializeBolao, serializeParticipacao, serializeParticipacaoResumo } from '../lib/serializers.js';
 import {
   TELEFONE_ORGANIZADOR, planReconciliacaoDebito, planDistribuicaoPremio,
-  recomputeSaldoStmt, resolverSaldo,
+  recomputeSaldoStmt, resolverSaldo, gerarCodigoBolao,
 } from '../lib/negocio.js';
 
 // Substitui loadBoloes: boloes + participações resumidas (p/ cotas ocupadas/lucro).
@@ -51,17 +51,18 @@ export async function create(env, request) {
 
   const id = newId();
   const criadoEm = nowIso();
+  const codigo = await gerarCodigoBolao(env.DB, body.loteria || null, concurso);
   const statements = [
     env.DB.prepare(`
       INSERT INTO boloes (id, nome, loteria, tipo_sorteio, concurso, data_sorteio,
         valor_cota_inteira_centavos, valor_cota_meia_centavos, quantidade_cotas,
-        custo_centavos, status, observacao, premio_estimado, jogos_descricao, criado_em)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        custo_centavos, status, observacao, premio_estimado, jogos_descricao, criado_em, codigo)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `).bind(
       id, nome, body.loteria || null, body.tipo_sorteio || null, concurso, dataSorteio,
       toCentavos(body.valor_cota_inteira), toCentavos(body.valor_cota_meia), quantidadeCotas,
       toCentavos(body.custo), 'ABERTO', body.observacao || null,
-      body.premio_estimado || null, body.jogos_descricao || null, criadoEm
+      body.premio_estimado || null, body.jogos_descricao || null, criadoEm, codigo
     ),
   ];
 
@@ -78,7 +79,7 @@ export async function create(env, request) {
     await env.DB.batch(statements);
   } catch (err) { throw classifyD1Error(err); }
 
-  return json({ id, criado_em: criadoEm }, 201);
+  return json({ id, criado_em: criadoEm, codigo }, 201);
 }
 
 // Substitui salvarEdicaoBolao. Preserva o comportamento original: NÃO
