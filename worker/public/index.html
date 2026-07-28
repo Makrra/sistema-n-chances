@@ -238,7 +238,7 @@ select.form-control option { background: var(--bg); }
 <div class="page active" id="page-dash">
   <div class="stats" id="stats-row">
     <div class="stat-card"><div class="stat-val" id="stat-boloes">—</div><div class="stat-lbl">Bolões Abertos</div></div>
-    <div class="stat-card"><div class="stat-val" id="stat-pendentes">—</div><div class="stat-lbl">Pagtos Pendentes</div></div>
+    <div class="stat-card" style="cursor:pointer" onclick="goPage('pendentes')"><div class="stat-val" id="stat-pendentes">—</div><div class="stat-lbl">Pagtos Pendentes</div></div>
     <div class="stat-card"><div class="stat-val" id="stat-saques">—</div><div class="stat-lbl">Saques Pend.</div></div>
   </div>
   <div class="card" style="margin-bottom:16px">
@@ -254,7 +254,7 @@ select.form-control option { background: var(--bg); }
     </div>
     <div class="stat-card"><div class="stat-val" id="caixa-premios" style="font-size:1.1rem;color:var(--yellow)">R$ 0,00</div><div class="stat-lbl">Acumulado em Prêmios</div></div>
   </div>
-  <div id="dash-boloes-list"></div>
+  <div id="dash-insights"></div>
 </div>
 
 <!-- ======= PAGE: BOLÕES ======= -->
@@ -287,6 +287,15 @@ select.form-control option { background: var(--bg); }
     <button class="tab-btn" onclick="filterSaques('pago')">Pagos</button>
   </div>
   <div id="saques-list"></div>
+</div>
+
+<!-- ======= PAGE: PAGAMENTOS PENDENTES ======= -->
+<div class="page" id="page-pendentes">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+    <button onclick="goPage('dash')" style="background:none;border:none;color:var(--text);font-size:1.3rem;cursor:pointer;padding:0;line-height:1">←</button>
+    <div style="font-size:1rem;font-weight:700">Pagamentos Pendentes</div>
+  </div>
+  <div id="pendentes-list"></div>
 </div>
 
 <!-- ======= NAV ======= -->
@@ -766,11 +775,15 @@ function goPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
-  document.querySelectorAll('.nav-btn')[['dash','boloes','clientes','saques'].indexOf(name)].classList.add('active');
-  if (name === 'dash')     loadDashboard();
-  if (name === 'boloes')   loadBoloes();
-  if (name === 'clientes') loadClientes();
-  if (name === 'saques')   loadSaques();
+  // "pendentes" não é uma aba do menu inferior (só se chega clicando no
+  // card do dashboard), então não tem nav-btn próprio pra ativar.
+  const navIdx = ['dash','boloes','clientes','saques'].indexOf(name);
+  if (navIdx !== -1) document.querySelectorAll('.nav-btn')[navIdx].classList.add('active');
+  if (name === 'dash')       loadDashboard();
+  if (name === 'boloes')     loadBoloes();
+  if (name === 'clientes')   loadClientes();
+  if (name === 'saques')     loadSaques();
+  if (name === 'pendentes')  loadPendentes();
 }
 
 // ============================================================
@@ -894,12 +907,8 @@ async function loadDashboard() {
   document.getElementById('stat-pendentes').textContent = pendentes.length;
   document.getElementById('stat-saques').textContent    = saques.length;
 
-  const participantesPorBolao = {};
-  const cotasOcupadasDash = {};
   const arrecadadoPorBolaoDash = {};
   allParts.forEach(p => {
-    participantesPorBolao[p.bolao_id] = (participantesPorBolao[p.bolao_id] || 0) + 1;
-    cotasOcupadasDash[p.bolao_id] = (cotasOcupadasDash[p.bolao_id] || 0) + (parseFloat(p.cotas) || 0);
     // Cotas de cortesia do organizador não contam como arrecadado
     if (p.status_pagamento === 'pago' && p.telefone !== TELEFONE_ORGANIZADOR) {
       arrecadadoPorBolaoDash[p.bolao_id] = (arrecadadoPorBolaoDash[p.bolao_id] || 0) + (parseFloat(p.valor_total) || 0);
@@ -908,31 +917,7 @@ async function loadDashboard() {
   dashBoloes = boloes;
   dashArrecadado = arrecadadoPorBolaoDash;
 
-  const container = document.getElementById('dash-boloes-list');
-  if (!boloes.length) {
-    container.innerHTML = '<div class="loading">Nenhum bolão cadastrado ainda.</div>';
-  } else {
-    // Bolões ABERTO sempre no topo, mantendo a ordem por criado_em dentro de cada grupo.
-    const ordenados = [...boloes].sort((a, b) => (a.status === 'ABERTO' ? 0 : 1) - (b.status === 'ABERTO' ? 0 : 1));
-    container.innerHTML = ordenados.slice(0,5).map(b => `
-      <div class="card" onclick="abrirBolao('${b.id}')">
-        <div class="card-header">
-          <div>
-            <div class="card-title">${b.nome || b.loteria || 'Bolão'}</div>
-            <div class="card-sub">${b.loteria || ''} • ${fmtData(b.data_sorteio)}</div>
-          </div>
-          ${statusBadge(b.status)}
-        </div>
-        <div style="display:flex;gap:16px;font-size:.8rem;color:var(--muted);margin-top:6px;flex-wrap:wrap">
-          <span>Concurso #${b.concurso || '—'}</span>
-          <span>Cota: ${fmtMoeda(b.valor_cota_inteira)}</span>
-          <span>Meia: ${fmtMoeda(b.valor_cota_meia)}</span>
-          <span>Cotas: ${cotasOcupadasDash[b.id] || 0}/${b.quantidade_cotas || '—'}</span>
-          ${b.status === 'SORTEADO' ? `<span style="color:var(--yellow)">Prêmio: ${fmtMoeda(b.premio_ganho)}</span>` : ''}
-        </div>
-      </div>
-    `).join('');
-  }
+  renderInsights(data.insights);
 
   const inputDe  = document.getElementById('caixa-de');
   const inputAte = document.getElementById('caixa-ate');
@@ -943,6 +928,45 @@ async function loadDashboard() {
     inputAte.value = hoje.toISOString().slice(0,10);
   }
   renderCaixa();
+}
+
+// Indicadores de negócio (all-time, sem filtro de período) que substituem
+// a antiga lista de bolões no Dashboard — essa lista já existe na aba "Bolões".
+function renderInsights(insights) {
+  const nomeLoteria = l => l ? (LOTERIA_LABEL[l] || l.toUpperCase()) : '—';
+  const cards = [
+    {
+      titulo: '🏆 MELHOR CLIENTE',
+      valor: insights.melhor_cliente ? insights.melhor_cliente.nome : '—',
+      sub: insights.melhor_cliente ? `${fmtMoeda(insights.melhor_cliente.total)} em cotas pagas` : 'Ainda sem dados',
+    },
+    {
+      titulo: '📈 LOTERIA MAIS VENDIDA',
+      valor: nomeLoteria(insights.loteria_mais_vendida?.loteria),
+      sub: insights.loteria_mais_vendida ? `${fmtMoeda(insights.loteria_mais_vendida.total)} arrecadados` : 'Ainda sem dados',
+    },
+    {
+      titulo: '💰 TICKET MAIS CARO',
+      valor: nomeLoteria(insights.loteria_ticket_mais_caro?.loteria),
+      sub: insights.loteria_ticket_mais_caro ? `${fmtMoeda(insights.loteria_ticket_mais_caro.media_valor_cota)} em média por cota` : 'Ainda sem dados',
+    },
+    {
+      titulo: '🎟️ BOLÕES COM MAIS COTAS',
+      valor: nomeLoteria(insights.loteria_mais_cotas?.loteria),
+      sub: insights.loteria_mais_cotas ? `${insights.loteria_mais_cotas.media_cotas.toFixed(1)} cotas em média` : 'Ainda sem dados',
+    },
+  ];
+  document.getElementById('dash-insights').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      ${cards.map(c => `
+        <div class="card" style="margin-bottom:0">
+          <div class="card-sub" style="margin-bottom:6px">${c.titulo}</div>
+          <div style="font-size:1rem;font-weight:800">${c.valor}</div>
+          <div class="card-sub" style="margin-top:2px;color:var(--green)">${c.sub}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 // Recalcula o card "Caixa do Período" com base no intervalo de datas
@@ -1182,6 +1206,56 @@ async function marcarPago(partId, bolaoId) {
   toast('Pagamento confirmado!');
   abrirBolao(bolaoId);
   loadBoloes();
+  loadDashboard();
+}
+
+// ============================================================
+// PAGAMENTOS PENDENTES (lista cruzando todos os bolões, acessada
+// clicando no card "Pagtos Pendentes" do dashboard)
+// ============================================================
+async function loadPendentes() {
+  document.getElementById('pendentes-list').innerHTML = '<div class="loading"><div class="spinner"></div>Carregando...</div>';
+  const { data, error } = await api.get('/participacoes/pendentes');
+  if (error) { toast('Erro ao carregar pendentes', true); return; }
+  const items = data.pendentes;
+  const container = document.getElementById('pendentes-list');
+  if (!items.length) {
+    container.innerHTML = '<div class="loading">Nenhum pagamento pendente.</div>';
+    return;
+  }
+  container.innerHTML = items.map(p => `
+    <div class="card" onclick="abrirBolao('${p.bolao_id}')">
+      <div class="card-header">
+        <div class="list-item" style="padding:0;border:none">
+          <div class="avatar">${initials(p.nome)}</div>
+          <div class="item-info">
+            <div class="item-name">${p.nome}</div>
+            <div class="item-detail">${p.bolao_nome || (LOTERIA_LABEL[p.loteria]||'')}${p.concurso ? ' #'+p.concurso : ''}</div>
+          </div>
+        </div>
+        ${statusBadge('pendente')}
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
+        <div style="font-size:.85rem;color:var(--muted)">${descreverCotas(p.cotas)} • ${fmtMoeda(p.valor_total)}</div>
+        <button class="btn btn-success btn-sm" onclick="event.stopPropagation();marcarPagoDaLista('${p.id}','${p.telefone}','${p.forma_pagamento}',${p.valor_total})">Marcar Pago</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Igual a marcarPago, mas sem abrir o modal do bolão ao final — essa lista
+// cruza vários bolões, então não faz sentido pular pro detalhe de um deles.
+async function marcarPagoDaLista(partId, telefone, formaPagamento, valorTotal) {
+  const body = {};
+  if ((formaPagamento || 'pix') === 'saldo') {
+    const valorDesejado = await perguntarValorSaldo(telefone, valorTotal);
+    if (valorDesejado === null) return;
+    body.valor_saldo_usado_desejado = valorDesejado;
+  }
+  const { error } = await api.patch(`/participacoes/${partId}/pagar`, body);
+  if (error) { toast('Erro: ' + error.message, true); return; }
+  toast('Pagamento confirmado!');
+  loadPendentes();
   loadDashboard();
 }
 

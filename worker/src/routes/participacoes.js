@@ -2,10 +2,27 @@ import { json, readJson, requireNumber } from '../lib/http.js';
 import { ApiError, classifyD1Error } from '../lib/errors.js';
 import { nowIso, newId } from '../lib/ids.js';
 import { toCotasMeias, valorPorCotasMeias } from '../lib/cotas.js';
+import { serializePendente } from '../lib/serializers.js';
 import {
   TELEFONE_ORGANIZADOR, planReconciliacaoDebito, planDistribuicaoPremio,
   recomputeSaldoStmt, resolverSaldo,
 } from '../lib/negocio.js';
+
+// Substitui a necessidade de entrar em cada bolão pra achar quem não pagou —
+// lista todas as participações pendentes, de qualquer bolão, num lugar só.
+export async function listarPendentes(env) {
+  const { results } = await env.DB.prepare(`
+    SELECT p.id, p.bolao_id, p.cotas_meias, p.valor_total_centavos, p.criado_em,
+           p.telefone, p.forma_pagamento, u.nome_completo, u.apelido,
+           b.nome AS bolao_nome, b.loteria, b.concurso
+    FROM participacoes p
+    JOIN usuarios u ON u.telefone = p.telefone
+    JOIN boloes b ON b.id = p.bolao_id
+    WHERE p.status_pagamento = 'pendente'
+    ORDER BY p.criado_em DESC
+  `).all();
+  return json({ pendentes: results.map(serializePendente) });
+}
 
 async function loadParticipacaoComBolao(db, id) {
   const row = await db.prepare(`

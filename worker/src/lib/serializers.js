@@ -58,6 +58,24 @@ export function serializeParticipacao(row) {
   return out;
 }
 
+// Usado por GET /api/participacoes/pendentes — participação + dados do
+// cliente e do bolão já resolvidos (evita round-trip extra no client).
+export function serializePendente(row) {
+  return {
+    id: row.id,
+    bolao_id: row.bolao_id,
+    telefone: row.telefone,
+    nome: row.apelido || row.nome_completo,
+    bolao_nome: row.bolao_nome,
+    loteria: row.loteria,
+    concurso: row.concurso,
+    cotas: fromCotasMeias(row.cotas_meias),
+    valor_total: fromCentavos(row.valor_total_centavos),
+    forma_pagamento: row.forma_pagamento,
+    criado_em: row.criado_em,
+  };
+}
+
 export function serializeUsuario(row) {
   return {
     telefone: row.telefone,

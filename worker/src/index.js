@@ -25,6 +25,7 @@ const routes = [
   { method: 'POST',   pattern: new URLPattern({ pathname: '/api/boloes/:id/sortear' }),             handler: (env, req, p) => boloes.sortear(env, req, p.id) },
   { method: 'POST',   pattern: new URLPattern({ pathname: '/api/boloes/:id/participacoes' }),       handler: (env, req, p) => boloes.addParticipacao(env, req, p.id) },
 
+  { method: 'GET',    pattern: new URLPattern({ pathname: '/api/participacoes/pendentes' }),        handler: (env) => participacoes.listarPendentes(env) },
   { method: 'PATCH',  pattern: new URLPattern({ pathname: '/api/participacoes/:id/pagar' }),        handler: (env, req, p) => participacoes.marcarPago(env, req, p.id) },
   { method: 'PATCH',  pattern: new URLPattern({ pathname: '/api/participacoes/:id/comprovante' }),  handler: (env, req, p) => participacoes.marcarComprovante(env, p.id) },
   { method: 'PUT',    pattern: new URLPattern({ pathname: '/api/participacoes/:id' }),              handler: (env, req, p) => participacoes.update(env, req, p.id) },
