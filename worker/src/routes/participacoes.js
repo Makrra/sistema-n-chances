@@ -5,7 +5,7 @@ import { toCotasMeias, valorPorCotasMeias } from '../lib/cotas.js';
 import { serializePendente } from '../lib/serializers.js';
 import {
   TELEFONE_ORGANIZADOR, planReconciliacaoDebito, planDistribuicaoPremio,
-  recomputeSaldoStmt, resolverSaldo,
+  recomputeSaldoStmt, resolverSaldo, nomeExibicaoBolao,
 } from '../lib/negocio.js';
 
 // Substitui a necessidade de entrar em cada bolão pra achar quem não pagou —
@@ -26,8 +26,8 @@ export async function listarPendentes(env) {
 
 async function loadParticipacaoComBolao(db, id) {
   const row = await db.prepare(`
-    SELECT p.*, b.nome AS bolao_nome, b.concurso AS bolao_concurso, b.status AS bolao_status,
-           b.premio_ganho_centavos AS bolao_premio_ganho_centavos,
+    SELECT p.*, b.nome AS bolao_nome, b.loteria AS bolao_loteria, b.concurso AS bolao_concurso,
+           b.status AS bolao_status, b.premio_ganho_centavos AS bolao_premio_ganho_centavos,
            b.valor_cota_inteira_centavos, b.valor_cota_meia_centavos, b.quantidade_cotas
     FROM participacoes p JOIN boloes b ON b.id = p.bolao_id
     WHERE p.id = ?
@@ -43,7 +43,8 @@ async function redistribuirSeNecessario(env, bolao) {
   if (bolao.bolao_status !== 'SORTEADO' || !(bolao.bolao_premio_ganho_centavos > 0)) return;
   const { statements: premioStmts, telefonesAfetados } = await planDistribuicaoPremio(env.DB, {
     bolaoId: bolao.bolao_id, premioTotalCentavos: bolao.bolao_premio_ganho_centavos,
-    bolaoNome: bolao.bolao_nome, bolaoConcurso: bolao.bolao_concurso,
+    bolaoNome: nomeExibicaoBolao({ nome: bolao.bolao_nome, loteria: bolao.bolao_loteria, concurso: bolao.bolao_concurso }),
+    bolaoConcurso: bolao.bolao_concurso,
     quantidadeCotas: bolao.quantidade_cotas, newId, nowIso,
   });
   telefonesAfetados.forEach(t => premioStmts.push(recomputeSaldoStmt(env.DB, t)));
@@ -78,7 +79,8 @@ export async function marcarPago(env, request, id) {
   statements.push(...await planReconciliacaoDebito(env.DB, {
     telefone: p.telefone, bolaoId: p.bolao_id, statusPagamento: 'pago', formaPagamento,
     valorTotalCentavos: p.valor_total_centavos, valorSaldoUsadoCentavos,
-    bolaoNome: p.bolao_nome, nowIso, newId,
+    bolaoNome: nomeExibicaoBolao({ nome: p.bolao_nome, loteria: p.bolao_loteria, concurso: p.bolao_concurso }),
+    nowIso, newId,
   }));
   statements.push(recomputeSaldoStmt(env.DB, p.telefone));
 
@@ -139,7 +141,9 @@ export async function update(env, request, id) {
   ];
   statements.push(...await planReconciliacaoDebito(env.DB, {
     telefone: p.telefone, bolaoId: p.bolao_id, statusPagamento: status, formaPagamento,
-    valorTotalCentavos, valorSaldoUsadoCentavos: 0, bolaoNome: p.bolao_nome, nowIso, newId,
+    valorTotalCentavos, valorSaldoUsadoCentavos: 0,
+    bolaoNome: nomeExibicaoBolao({ nome: p.bolao_nome, loteria: p.bolao_loteria, concurso: p.bolao_concurso }),
+    nowIso, newId,
   }));
   statements.push(recomputeSaldoStmt(env.DB, p.telefone));
 

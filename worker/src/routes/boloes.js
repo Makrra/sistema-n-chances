@@ -6,7 +6,7 @@ import { toCotasMeias, valorPorCotasMeias } from '../lib/cotas.js';
 import { serializeBolao, serializeParticipacao, serializeParticipacaoResumo } from '../lib/serializers.js';
 import {
   TELEFONE_ORGANIZADOR, planReconciliacaoDebito, planDistribuicaoPremio,
-  recomputeSaldoStmt, resolverSaldo, gerarCodigoBolao,
+  recomputeSaldoStmt, resolverSaldo, gerarCodigoBolao, nomeExibicaoBolao,
 } from '../lib/negocio.js';
 
 // Substitui loadBoloes: boloes + participações resumidas (p/ cotas ocupadas/lucro).
@@ -40,7 +40,7 @@ export async function detail(env, id) {
 // participação de cortesia do organizador, atômico.
 export async function create(env, request) {
   const body = await readJson(request);
-  const nome = requireString(body, 'nome');
+  const nome = body.nome || null;
   const concurso = requireNumber(body, 'concurso');
   const dataSorteio = requireString(body, 'data_sorteio');
   const cotasReservadas = Number(body.cotas_reservadas) || 0;
@@ -88,19 +88,18 @@ export async function create(env, request) {
 // no app original, preservada de propósito).
 export async function update(env, request, id) {
   const body = await readJson(request);
-  const nome = requireString(body, 'nome');
   const concurso = requireNumber(body, 'concurso');
   const dataSorteio = requireString(body, 'data_sorteio');
 
   let result;
   try {
     result = await env.DB.prepare(`
-      UPDATE boloes SET nome=?, loteria=?, tipo_sorteio=?, concurso=?, data_sorteio=?,
+      UPDATE boloes SET loteria=?, tipo_sorteio=?, concurso=?, data_sorteio=?,
         valor_cota_inteira_centavos=?, valor_cota_meia_centavos=?, quantidade_cotas=?,
         premio_ganho_centavos=?, custo_centavos=?, observacao=?
       WHERE id=?
     `).bind(
-      nome, body.loteria || null, body.tipo_sorteio || null, concurso, dataSorteio,
+      body.loteria || null, body.tipo_sorteio || null, concurso, dataSorteio,
       toCentavos(body.valor_cota_inteira), toCentavos(body.valor_cota_meia),
       body.quantidade_cotas != null ? Number(body.quantidade_cotas) : null,
       toCentavos(body.premio_ganho), toCentavos(body.custo), body.observacao || null, id
@@ -169,7 +168,7 @@ export async function sortear(env, request, id) {
 
   if (premiado) {
     const { statements: premioStmts, telefonesAfetados } = await planDistribuicaoPremio(env.DB, {
-      bolaoId: id, premioTotalCentavos, bolaoNome: bolao.nome, bolaoConcurso: bolao.concurso,
+      bolaoId: id, premioTotalCentavos, bolaoNome: nomeExibicaoBolao(bolao), bolaoConcurso: bolao.concurso,
       quantidadeCotas: bolao.quantidade_cotas, newId, nowIso,
     });
     statements.push(...premioStmts);
@@ -235,7 +234,7 @@ export async function addParticipacao(env, request, bolaoId) {
   ];
   const debitoStmts = await planReconciliacaoDebito(env.DB, {
     telefone, bolaoId, statusPagamento: status, formaPagamento, valorTotalCentavos,
-    valorSaldoUsadoCentavos, bolaoNome: bolao.nome, nowIso, newId,
+    valorSaldoUsadoCentavos, bolaoNome: nomeExibicaoBolao(bolao), nowIso, newId,
   });
   statements.push(...debitoStmts);
   if (debitoStmts.length > 0) statements.push(recomputeSaldoStmt(env.DB, telefone));

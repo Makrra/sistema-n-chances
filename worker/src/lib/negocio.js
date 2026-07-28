@@ -25,6 +25,26 @@ export const SIGLA_LOTERIA = {
   'outro': 'OT',
 };
 
+const LOTERIA_NOME = {
+  'mega-sena': 'Mega-Sena',
+  'lotofacil': 'Lotofácil',
+  'quina': 'Quina',
+  'lotomania': 'Lotomania',
+  'dupla-sena': 'Dupla Sena',
+  'timemania': 'Timemania',
+  'outro': 'Sorteio',
+};
+
+// Nome de exibição do bolão pra descrições de extrato/prêmio. O campo
+// `nome` deixou de ser preenchido no cadastro (bolões agora se identificam
+// por loteria+concurso+código) — bolões antigos que ainda têm um nome
+// customizado continuam mostrando ele; os novos caem no fallback composto.
+export function nomeExibicaoBolao(bolao) {
+  if (bolao?.nome) return bolao.nome;
+  const loteria = LOTERIA_NOME[bolao?.loteria] || bolao?.loteria || 'Bolão';
+  return bolao?.concurso ? `${loteria} #${bolao.concurso}` : loteria;
+}
+
 // Código único do bolão: {SIGLA}-{concurso}{sequência de 4 dígitos}. A
 // sequência reinicia por combinação loteria+concurso (dois bolões do mesmo
 // sorteio, ex. um principal e um extra, ficam 0001/0002). Leitura prévia

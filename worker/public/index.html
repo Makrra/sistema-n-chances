@@ -324,10 +324,6 @@ select.form-control option { background: var(--bg); }
 <div class="modal-overlay" id="modal-novo-bolao">
   <div class="modal">
     <div class="modal-title">Novo Bolão</div>
-    <div class="form-group">
-      <label class="form-label">Nome do Bolão</label>
-      <input class="form-control" id="nb-nome" placeholder="Ex: Mega-Sena #2780">
-    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group">
         <label class="form-label">Loteria</label>
@@ -416,10 +412,6 @@ select.form-control option { background: var(--bg); }
   <div class="modal">
     <div class="modal-title">Editar Bolão</div>
     <input type="hidden" id="eb-id">
-    <div class="form-group">
-      <label class="form-label">Nome do Bolão</label>
-      <input class="form-control" id="eb-nome">
-    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group">
         <label class="form-label">Loteria</label>
@@ -751,6 +743,16 @@ const TIPO_SORTEIO_LABEL = {
   teimosinha: 'TEIMOSINHA', especial: 'ESPECIAL',
 };
 
+// O cadastro de bolão não pede mais nome próprio (loteria+tipo+concurso já
+// identifica) — bolões antigos que ainda têm um nome customizado continuam
+// mostrando ele; os novos caem no fallback composto.
+function tituloBolao(b) {
+  if (b.nome) return b.nome;
+  const loteriaLabel = LOTERIA_LABEL[b.loteria] || (b.loteria || 'Bolão').toUpperCase();
+  const tipoLabel = TIPO_SORTEIO_LABEL[b.tipo_sorteio] || '';
+  return [loteriaLabel, tipoLabel].filter(Boolean).join(' ');
+}
+
 // ============================================================
 // STATE
 // ============================================================
@@ -767,6 +769,8 @@ let cotasOcupadas = {};      // bolao_id -> soma de cotas (reservadas + vendidas
 let arrecadadoPorBolao = {}; // bolao_id -> soma de valor_total das participações pagas
 let dashBoloes = [];          // boloes carregados no dashboard (p/ recálculo do caixa)
 let dashArrecadado = {};      // bolao_id -> arrecadado (excluindo cortesia do organizador)
+let currentPendentes = [];    // participações pendentes carregadas na tela de Pagtos Pendentes
+let epartOrigem = 'bolao';    // 'bolao' | 'pendentes' — de onde o modal Editar Participação foi aberto
 
 // ============================================================
 // NAVIGATION
@@ -1094,7 +1098,7 @@ function renderBoloes() {
     <div class="card" onclick="abrirBolao('${b.id}')">
       <div class="card-header">
         <div>
-          <div class="card-title">${b.nome || b.loteria || 'Bolão'}</div>
+          <div class="card-title">${tituloBolao(b)}</div>
           <div class="card-sub">${b.codigo ? b.codigo + ' • ' : ''}${b.loteria || ''} • Sorteio: ${fmtData(b.data_sorteio)}</div>
         </div>
         ${statusBadge(b.status)}
@@ -1112,7 +1116,6 @@ function renderBoloes() {
 }
 
 async function criarBolao() {
-  const nome         = document.getElementById('nb-nome').value.trim();
   const loteria      = document.getElementById('nb-loteria').value;
   const tipoSorteio  = document.getElementById('nb-tipo-sorteio').value;
   const concurso     = document.getElementById('nb-concurso').value;
@@ -1125,12 +1128,11 @@ async function criarBolao() {
   const premioEstimado = document.getElementById('nb-premio-estimado').value.trim();
   const jogosDescricao = document.getElementById('nb-jogos-descricao').value.trim();
   const obs          = document.getElementById('nb-obs').value.trim();
-  if (!nome) { toast('Informe o nome do bolão', true); return; }
   if (!concurso) { toast('Informe o número do concurso', true); return; }
   if (!data) { toast('Informe a data do sorteio', true); return; }
   if (cotasReservadas > cotas) { toast('Cotas reservadas não podem ser maiores que o nº de cotas', true); return; }
   const { error } = await api.post('/boloes', {
-    nome, loteria, tipo_sorteio: tipoSorteio,
+    loteria, tipo_sorteio: tipoSorteio,
     concurso: parseInt(concurso),
     data_sorteio: data,
     valor_cota_inteira: valor, valor_cota_meia: meiaCota, quantidade_cotas: cotas,
@@ -1142,7 +1144,7 @@ async function criarBolao() {
   closeModal('modal-novo-bolao');
   loadBoloes();
   // limpar form
-  ['nb-nome','nb-concurso','nb-data','nb-valor','nb-meia-cota','nb-custo','nb-premio-estimado','nb-jogos-descricao','nb-obs'].forEach(id => document.getElementById(id).value = '');
+  ['nb-concurso','nb-data','nb-valor','nb-meia-cota','nb-custo','nb-premio-estimado','nb-jogos-descricao','nb-obs'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('nb-cotas').value = '1';
   document.getElementById('nb-cotas-reservadas').value = '0';
 }
@@ -1171,7 +1173,7 @@ async function abrirBolao(id) {
   modal.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
       <div>
-        <div class="modal-title" style="margin-bottom:4px">${b.nome || b.loteria}</div>
+        <div class="modal-title" style="margin-bottom:4px">${tituloBolao(b)}</div>
         <div style="font-size:.8rem;color:var(--muted)">${b.codigo ? b.codigo + ' • ' : ''}${b.loteria} • Concurso #${b.concurso||'—'}</div>
       </div>
       ${statusBadge(b.status)}
@@ -1271,6 +1273,7 @@ async function loadPendentes() {
   const { data, error } = await api.get('/participacoes/pendentes');
   if (error) { toast('Erro ao carregar pendentes', true); return; }
   const items = data.pendentes;
+  currentPendentes = items;
   const container = document.getElementById('pendentes-list');
   if (!items.length) {
     container.innerHTML = '<div class="loading">Nenhum pagamento pendente.</div>';
@@ -1289,12 +1292,40 @@ async function loadPendentes() {
         </div>
         ${statusBadge('pendente')}
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px;flex-wrap:wrap">
         <div style="font-size:.85rem;color:var(--muted)">${descreverCotas(p.cotas)} • ${fmtMoeda(p.valor_total)}</div>
-        <button class="btn btn-success btn-sm" onclick="event.stopPropagation();marcarPagoDaLista('${p.id}','${p.telefone}','${p.forma_pagamento}',${p.valor_total})">Marcar Pago</button>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-sm" style="background:var(--accent2);color:#74b9ff" onclick="event.stopPropagation();abrirEditarPartDaLista('${p.id}')">Editar</button>
+          <button class="btn btn-success btn-sm" onclick="event.stopPropagation();marcarPagoDaLista('${p.id}','${p.telefone}','${p.forma_pagamento}',${p.valor_total})">Marcar Pago</button>
+        </div>
       </div>
     </div>
   `).join('');
+}
+
+// Igual a abrirEditarPart, mas pra participação vinda da lista de pendentes:
+// não depende de currentBolaoParts (que só reflete o bolão aberto por
+// último) — usa os dados já carregados em currentPendentes e busca o bolão
+// (valores de cota) direto na API, já que allBoloes pode não estar populado
+// se o operador chegou aqui sem passar pela aba Bolões.
+async function abrirEditarPartDaLista(partId) {
+  const p = currentPendentes.find(x => x.id === partId);
+  if (!p) return;
+  const { data, error } = await api.get(`/boloes/${p.bolao_id}`);
+  if (error) { toast('Erro ao carregar bolão: ' + error.message, true); return; }
+  const bolao = data.bolao;
+  document.getElementById('epart-id').value = p.id;
+  document.getElementById('epart-bolao-id').value = p.bolao_id;
+  document.getElementById('epart-valor-cota').value = bolao?.valor_cota_inteira || 0;
+  document.getElementById('epart-valor-meia').value = bolao?.valor_cota_meia || 0;
+  document.getElementById('epart-nome').textContent = p.nome || p.telefone;
+  document.getElementById('epart-cotas').value = p.cotas;
+  document.getElementById('epart-valor').value = p.valor_total;
+  document.getElementById('epart-status').value = 'pendente';
+  document.getElementById('epart-forma-pagamento').value = p.forma_pagamento || 'pix';
+  setEpartOrganizadorUI(false);
+  epartOrigem = 'pendentes';
+  openModal('modal-editar-part');
 }
 
 // Igual a marcarPago, mas sem abrir o modal do bolão ao final — essa lista
@@ -1358,7 +1389,6 @@ function abrirEditarBolao(id) {
   const b = allBoloes.find(x => x.id === id);
   if (!b) return;
   document.getElementById('eb-id').value = b.id;
-  document.getElementById('eb-nome').value = b.nome || '';
   document.getElementById('eb-loteria').value = b.loteria || 'mega-sena';
   document.getElementById('eb-tipo-sorteio').value = b.tipo_sorteio || 'acumulado';
   document.getElementById('eb-concurso').value = b.concurso || '';
@@ -1375,7 +1405,6 @@ function abrirEditarBolao(id) {
 
 async function salvarEdicaoBolao() {
   const id          = document.getElementById('eb-id').value;
-  const nome        = document.getElementById('eb-nome').value.trim();
   const loteria     = document.getElementById('eb-loteria').value;
   const tipoSorteio = document.getElementById('eb-tipo-sorteio').value;
   const concurso    = document.getElementById('eb-concurso').value;
@@ -1386,11 +1415,10 @@ async function salvarEdicaoBolao() {
   const premio      = parseFloat(document.getElementById('eb-premio').value) || 0;
   const custo       = parseFloat(document.getElementById('eb-custo').value) || 0;
   const obs         = document.getElementById('eb-obs').value.trim();
-  if (!nome) { toast('Informe o nome do bolão', true); return; }
   if (!concurso) { toast('Informe o número do concurso', true); return; }
   if (!data) { toast('Informe a data do sorteio', true); return; }
   const { error } = await api.put(`/boloes/${id}`, {
-    nome, loteria, tipo_sorteio: tipoSorteio,
+    loteria, tipo_sorteio: tipoSorteio,
     concurso: parseInt(concurso), data_sorteio: data,
     valor_cota_inteira: valor, valor_cota_meia: meiaCota, quantidade_cotas: cotas,
     premio_ganho: premio, custo, observacao: obs || null,
@@ -1407,7 +1435,7 @@ async function salvarEdicaoBolao() {
 // ============================================================
 async function confirmarExcluirBolao(id) {
   const bolao = allBoloes.find(b => b.id === id);
-  const nomeBolao = bolao?.nome || bolao?.loteria || 'este bolão';
+  const nomeBolao = bolao ? tituloBolao(bolao) : 'este bolão';
 
   const digitado = prompt(
     `Isso vai EXCLUIR PERMANENTEMENTE o bolão "${nomeBolao}", todos os participantes ` +
@@ -1660,6 +1688,7 @@ function abrirEditarPart(partId, bolaoId) {
   document.getElementById('epart-status').value = isOrganizador ? 'pago' : p.status_pagamento;
   document.getElementById('epart-forma-pagamento').value = isOrganizador ? 'pix' : (p.forma_pagamento || 'pix');
   setEpartOrganizadorUI(isOrganizador);
+  epartOrigem = 'bolao';
   closeModal('modal-bolao-det');
   openModal('modal-editar-part');
 }
@@ -1701,7 +1730,11 @@ async function salvarEdicaoPart() {
 
   toast('Participação atualizada!');
   closeModal('modal-editar-part');
-  abrirBolao(bolaoId);
+  if (epartOrigem === 'pendentes') {
+    loadPendentes();
+  } else {
+    abrirBolao(bolaoId);
+  }
   loadBoloes();
   loadDashboard();
 }
