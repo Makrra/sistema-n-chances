@@ -10,10 +10,11 @@ compatibility_date = "2026-07-26"
 directory = "./public"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*", "/c/*"]
+run_worker_first = ["/api/*", "/jogos_e_resultado/*"]
 # "none" evita o redirect automático que o handling padrão de assets faz de
-# /arquivo.html -> /arquivo (isso quebrava /c/{codigo}, que sempre voltava
-# pra /c sem o código — ver o fetch manual de /c.html em src/index.js).
+# /arquivo.html -> /arquivo (isso quebrava /jogos_e_resultado/{codigo}, que
+# sempre voltava pra /jogos_e_resultado sem o código — ver o fetch manual de
+# jogos-e-resultado.html em src/index.js).
 html_handling = "none"
 
 [[d1_databases]]
@@ -29,7 +30,7 @@ database_id = "00000000-0000-0000-0000-000000000000"
 directory = "./public"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*", "/c/*"]
+run_worker_first = ["/api/*", "/jogos_e_resultado/*"]
 html_handling = "none"
 
 [[env.staging.d1_databases]]
@@ -59,7 +60,7 @@ workers_dev = true
 directory = "./public"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*", "/c/*"]
+run_worker_first = ["/api/*", "/jogos_e_resultado/*"]
 html_handling = "none"
 
 [[env.production.d1_databases]]

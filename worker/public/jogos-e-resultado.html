@@ -3,17 +3,30 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<meta name="theme-color" content="#0f0f1a">
+<meta name="theme-color" content="#0c1712">
 <title>N-Chances | Bolões</title>
 <style>
+/* Tipografia oficial da marca (ver [Descritivo] N Chances.pdf) — usada só no
+   wordmark "Chances" do cabeçalho. Caminho absoluto porque esta página é
+   servida em /jogos_e_resultado/ e /jogos_e_resultado/{codigo} (relativo quebraria sob /jogos_e_resultado/{codigo}). */
+@font-face {
+  font-family: 'RBNo3.1';
+  src: url('/fonts/RBNo3.1-Extrabold.otf') format('opentype');
+  font-weight: 800;
+  font-display: swap;
+}
 :root {
-  --bg: #0f0f1a;
-  --surface: #1a1a2e;
-  --card: #16213e;
-  --accent: #e94560;
-  --text: #e2e2e2;
-  --muted: #8892a4;
-  --border: #2a2a45;
+  /* Paleta oficial da marca (ver [Descritivo] N Chances.pdf) */
+  --bg: #0c1712;
+  --surface: #12201a;
+  --card: #16251e;
+  --accent: #A4C73E;
+  --green: #3C9742;
+  --yellow: #c99a3d;
+  --info: #8fa5ad;
+  --text: #eef1ec;
+  --muted: #7f9086;
+  --border: #223229;
   --radius: 12px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -31,7 +44,9 @@ body {
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 10;
 }
-.header h1 { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
+.header-brand { display: flex; align-items: center; gap: 8px; }
+.header-brand svg { width: 22px; height: auto; flex-shrink: 0; }
+.header-brand .word { font-family: 'RBNo3.1', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-weight: 800; font-size: 1.1rem; color: var(--text); }
 .header .subtitle { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
 .wrap { padding: 16px; }
 .card {
@@ -46,9 +61,9 @@ body {
   border-radius: 20px; text-transform: uppercase; letter-spacing: .5px;
   display: inline-block; margin-top: 8px;
 }
-.badge-aberto   { background: rgba(0,184,148,.18); color: #00b894; }
-.badge-fechado  { background: rgba(253,203,110,.18); color: #fdcb6e; }
-.badge-sorteado { background: rgba(116,185,255,.18); color: #74b9ff; }
+.badge-aberto   { background: rgba(60,151,66,.18); color: var(--green); }
+.badge-fechado  { background: rgba(201,154,61,.18); color: var(--yellow); }
+.badge-sorteado { background: rgba(143,165,173,.18); color: var(--info); }
 .loading { text-align: center; padding: 50px 20px; color: var(--muted); font-size: 0.9rem; }
 .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 12px; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -63,22 +78,16 @@ body {
   display: flex; align-items: center; justify-content: center;
   font-size: 0.78rem; font-weight: 800; flex-shrink: 0;
 }
-.bola.acerto { box-shadow: 0 0 0 3px #ffd700; }
+.bola.acerto { box-shadow: 0 0 0 3px var(--accent); }
 .bola.grande { width: 40px; height: 40px; font-size: 0.85rem; }
 .acertos-tag {
   font-size: 0.7rem; font-weight: 700; color: var(--accent);
-  background: rgba(233,69,96,.12); padding: 2px 8px; border-radius: 12px;
+  background: rgba(164,199,62,.12); padding: 2px 8px; border-radius: 12px;
   margin-left: auto;
 }
 .tabela { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin-top: 6px; }
 .tabela th, .tabela td { padding: 7px 6px; text-align: left; border-bottom: 1px solid var(--border); }
 .tabela th { color: var(--muted); font-weight: 600; font-size: 0.7rem; text-transform: uppercase; }
-.btn {
-  border: none; border-radius: 8px; padding: 11px 18px;
-  font-size: 0.85rem; font-weight: 700; cursor: pointer;
-  background: #25D366; color: #063; width: 100%; margin-top: 16px;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-}
 .footer {
   margin-top: 24px; padding: 14px 4px; font-size: 0.68rem; color: var(--muted);
   text-align: center; line-height: 1.5;
@@ -89,7 +98,19 @@ body {
 <body>
 
 <div class="header">
-  <h1>N-Chances</h1>
+  <div class="header-brand">
+    <svg viewBox="-10 -10 350 466" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <linearGradient id="ncLogoGrad" x1="5602.47" y1="718.3" x2="5389.84" y2="414.63" gradientTransform="translate(5689.14 806.69) rotate(-180)" gradientUnits="userSpaceOnUse">
+          <stop offset=".4" stop-color="#a4c73e"/>
+          <stop offset=".71" stop-color="#3c9742"/>
+          <stop offset="1" stop-color="#016331"/>
+        </linearGradient>
+      </defs>
+      <path fill="url(#ncLogoGrad)" d="M50.61,443.7H124.71c46.11,0,83.49-37.38,83.49-83.49v-41.73l-55.66-55.66v97.39c0,15.37-12.46,27.83-27.83,27.83H56.18V205.59c0-17.25,13.15-24.04,17.18-25.71,4.03-1.67,18.13-6.17,30.33,6.03l26.33,26.33v-.17l97.85,97.85v.18s47.9,47.89,47.9,47.89c8.24,8.24,18.81,13.14,29.86,14.37,9.69,1.08,19.74-.65,28.95-5.49,16.67-8.76,26.71-26.47,26.71-45.3V52.33c0-27.67-22.43-50.09-50.09-50.09h-75.16c-46.11,0-83.49,37.38-83.49,83.49v42.29l55.66,55.66V85.73c0-15.37,12.46-27.83,27.83-27.83h47.33c12.3,0,22.26,9.97,22.26,22.26v228.97l-76.64-76.64v.21s-88.94-88.95-88.94-88.95c-23.07-21.03-54.5-27.34-83.87-16.84-1.38,.49-2.76,.97-4.12,1.54C20.26,141.62,.52,171.18,.52,205.59v188.01c0,27.67,22.43,50.09,50.09,50.09Z"/>
+    </svg>
+    <span class="word">Chances</span>
+  </div>
   <div class="subtitle" id="header-subtitle">Bolões</div>
 </div>
 
@@ -104,19 +125,31 @@ body {
 // mudança de cor precisa ser replicada nos dois lugares (ver comentário lá).
 // ============================================================
 const LOTERIAS = {
-  'mega-sena':  { nome: 'Mega-Sena',  cor: '#00AB67', corTexto: '#000000' },
-  'lotofacil':  { nome: 'Lotofácil',  cor: '#803594', corTexto: '#FFFFFF' },
-  'quina':      { nome: 'Quina',      cor: '#005DA4', corTexto: '#FFFFFF' },
-  'lotomania':  { nome: 'Lotomania',  cor: '#F99D1C', corTexto: '#000000' },
-  'dupla-sena': { nome: 'Dupla Sena', cor: '#A62A52', corTexto: '#FFFFFF' },
-  'timemania':  { nome: 'Timemania',  cor: '#FFDD00', corTexto: '#000000' },
-  'outro':      { nome: 'Sorteio',    cor: '#6B7280', corTexto: '#FFFFFF' },
+  'mega-sena':  { nome: 'Mega-Sena',  emoji: '🟢', cor: '#00AB67', corTexto: '#000000' },
+  'lotofacil':  { nome: 'Lotofácil',  emoji: '🟣', cor: '#803594', corTexto: '#FFFFFF' },
+  'quina':      { nome: 'Quina',      emoji: '🔵', cor: '#005DA4', corTexto: '#FFFFFF' },
+  'lotomania':  { nome: 'Lotomania',  emoji: '🟠', cor: '#F99D1C', corTexto: '#000000' },
+  'dupla-sena': { nome: 'Dupla Sena', emoji: '🔴', cor: '#A62A52', corTexto: '#FFFFFF' },
+  'timemania':  { nome: 'Timemania',  emoji: '🟡', cor: '#FFDD00', corTexto: '#000000' },
+  'outro':      { nome: 'Sorteio',    emoji: '⚪', cor: '#6B7280', corTexto: '#FFFFFF' },
 };
 const STATUS_LABEL = { ABERTO: 'Aberto', FECHADO: 'Fechado', SORTEADO: 'Sorteado' };
 const STATUS_BADGE_CLASS = { ABERTO: 'badge-aberto', FECHADO: 'badge-fechado', SORTEADO: 'badge-sorteado' };
-const TIPO_ESTRATEGIA_LABEL = { SIMPLES: 'Jogos avulsos', DESDOBRAMENTO: 'Desdobramento', FECHAMENTO: 'Fechamento' };
+const TIPO_ESTRATEGIA_LABEL = { SIMPLES: 'Jogos avulsos', SURPRESINHA: 'Surpresinha', DESDOBRAMENTO: 'Desdobramento', FECHAMENTO: 'Fechamento' };
+const TIPO_SORTEIO_LABEL = {
+  acumulado: 'ACUMULADA', simples: 'SIMPLES', surpresinha: 'SURPRESINHA',
+  teimosinha: 'TEIMOSINHA', especial: 'ESPECIAL',
+};
 
 function loteriaInfo(loteria) { return LOTERIAS[loteria] || LOTERIAS['outro']; }
+
+// Título do card: bolinha da loteria + nome + tipo (ou nome próprio, em
+// sorteios especiais, ex. "LOTOFÁCIL DA INDEPENDÊNCIA").
+function tituloPublico(b) {
+  const info = loteriaInfo(b.loteria);
+  const tipoLabel = (b.tipo_sorteio === 'especial' && b.nome) ? escapeHtml(b.nome.toUpperCase()) : (TIPO_SORTEIO_LABEL[b.tipo_sorteio] || '');
+  return `${info.emoji} ${[info.nome.toUpperCase(), tipoLabel].filter(Boolean).join(' ')}`;
+}
 function fmtData(iso) {
   if (!iso) return '—';
   const [y, m, d] = iso.slice(0, 10).split('-');
@@ -143,7 +176,7 @@ async function apiGet(path) {
 }
 
 // ============================================================
-// HOME (/c/) — lista de bolões ativos (UC11)
+// HOME (/jogos_e_resultado/) — lista de bolões ativos (UC11)
 // ============================================================
 async function carregarHome() {
   document.getElementById('header-subtitle').textContent = 'Bolões em andamento';
@@ -155,12 +188,12 @@ async function carregarHome() {
       return;
     }
     app.innerHTML = boloes.map(b => {
-      const info = loteriaInfo(b.loteria);
+      const premio = b.premio_estimado ? ` — ${escapeHtml(b.premio_estimado)}` : '';
       return `
       <div class="card">
-        <a href="/c/${encodeURIComponent(b.codigo)}">
-          <div class="card-title">${info.nome} — Concurso #${b.concurso ?? '—'}</div>
-          <div class="card-sub">${escapeHtml(b.codigo)} • Sorteio: ${fmtData(b.data_sorteio)}</div>
+        <a href="/jogos_e_resultado/${encodeURIComponent(b.codigo)}">
+          <div class="card-title">${tituloPublico(b)}${premio}</div>
+          <div class="card-sub">${escapeHtml(b.codigo)} • Sorteio: ${fmtData(b.data_sorteio)} • ${b.quantidade_cotas ?? '—'} cotas • Concurso #${b.concurso ?? '—'}</div>
           <span class="badge ${STATUS_BADGE_CLASS[b.status] || ''}">${STATUS_LABEL[b.status] || b.status}</span>
         </a>
       </div>`;
@@ -171,7 +204,7 @@ async function carregarHome() {
 }
 
 // ============================================================
-// DETALHE (/c/:codigo) — jogos, estratégia, resultado (UC08-UC10)
+// DETALHE (/jogos_e_resultado/:codigo) — jogos, estratégia, resultado (UC08-UC10)
 // ============================================================
 async function carregarDetalhe(codigo) {
   document.getElementById('header-subtitle').textContent = codigo;
@@ -179,12 +212,13 @@ async function carregarDetalhe(codigo) {
   try {
     const { bolao, estrategia, jogos, resultado } = await apiGet('/api/public/boloes/' + encodeURIComponent(codigo));
     const info = loteriaInfo(bolao.loteria);
-    let html = '<a href="/c/" class="back">&larr; Todos os bolões</a>';
+    let html = '<a href="/jogos_e_resultado/" class="back">&larr; Todos os bolões</a>';
 
+    const premio = bolao.premio_estimado ? ` — ${escapeHtml(bolao.premio_estimado)}` : '';
     html += `
     <div class="card">
-      <div class="card-title">${info.nome} — Concurso #${bolao.concurso ?? '—'}</div>
-      <div class="card-sub">${escapeHtml(bolao.codigo)} • Sorteio: ${fmtData(bolao.data_sorteio)}</div>
+      <div class="card-title">${tituloPublico(bolao)}${premio}</div>
+      <div class="card-sub">${escapeHtml(bolao.codigo)} • Sorteio: ${fmtData(bolao.data_sorteio)} • ${bolao.quantidade_cotas ?? '—'} cotas • Concurso #${bolao.concurso ?? '—'}</div>
       <span class="badge ${STATUS_BADGE_CLASS[bolao.status] || ''}">${STATUS_LABEL[bolao.status] || bolao.status}</span>
     </div>`;
 
@@ -205,7 +239,8 @@ async function carregarDetalhe(codigo) {
     } else {
       html += '<div class="card">' + jogos.map((j, i) => {
         const sorteadas = resultado ? new Set(resultado.dezenas_sorteadas) : null;
-        const bolasHtml = j.dezenas.map(d => bolaHtml(d, bolao.loteria, sorteadas ? sorteadas.has(d) : false)).join('');
+        const dezenasOrdenadas = j.dezenas.slice().sort((a, b) => a - b);
+        const bolasHtml = dezenasOrdenadas.map(d => bolaHtml(d, bolao.loteria, sorteadas ? sorteadas.has(d) : false)).join('');
         const tagAcertos = resultado ? `<span class="acertos-tag">${j.acertos} acerto${j.acertos === 1 ? '' : 's'}</span>` : '';
         return `<div class="jogo-row"><div class="jogo-idx">#${i + 1}</div><div class="bolas">${bolasHtml}</div>${tagAcertos}</div>`;
       }).join('') + '</div>';
@@ -214,7 +249,8 @@ async function carregarDetalhe(codigo) {
     if (resultado) {
       html += '<div class="section-title">Resultado do sorteio</div><div class="card">';
       html += `<div style="font-size:.75rem;color:var(--muted);margin-bottom:6px">Dezenas sorteadas${resultado.data_apuracao ? ' • ' + fmtData(resultado.data_apuracao) : ''}:</div>`;
-      html += `<div class="bolas">${resultado.dezenas_sorteadas.map(d => bolaHtml(d, bolao.loteria, true, true)).join('')}</div>`;
+      const dezenasSorteadasOrdenadas = resultado.dezenas_sorteadas.slice().sort((a, b) => a - b);
+      html += `<div class="bolas">${dezenasSorteadasOrdenadas.map(d => bolaHtml(d, bolao.loteria, true, true)).join('')}</div>`;
       if (resultado.premiacoes && resultado.premiacoes.length) {
         html += `<table class="tabela"><thead><tr><th>Faixa</th><th>Acertos</th><th>Ganhadores</th><th>Rateio</th></tr></thead><tbody>`;
         html += resultado.premiacoes.map(p => `<tr>
@@ -228,16 +264,11 @@ async function carregarDetalhe(codigo) {
       html += '</div>';
     }
 
-    const textoShare = encodeURIComponent(
-      `Confira os jogos do bolão ${info.nome} #${bolao.concurso ?? ''} (${bolao.codigo}): ${location.href}`
-    );
-    html += `<a href="https://wa.me/?text=${textoShare}" target="_blank" rel="noopener"><button class="btn">📲 Compartilhar no WhatsApp</button></a>`;
-
     html += `<div class="footer">Conteúdo informativo do bolão N-Chances. Nenhum dado pessoal de participantes é exibido nesta página.</div>`;
 
     app.innerHTML = html;
   } catch (err) {
-    app.innerHTML = `<a href="/c/" class="back">&larr; Todos os bolões</a><div class="empty">Bolão não encontrado ou erro ao carregar: ${escapeHtml(err.message)}</div>`;
+    app.innerHTML = `<a href="/jogos_e_resultado/" class="back">&larr; Todos os bolões</a><div class="empty">Bolão não encontrado ou erro ao carregar: ${escapeHtml(err.message)}</div>`;
   }
 }
 
@@ -245,7 +276,7 @@ async function carregarDetalhe(codigo) {
 // ROTEAMENTO (client-side, dentro do mesmo bundle estático)
 // ============================================================
 (function init() {
-  const codigo = decodeURIComponent(location.pathname.replace(/^\/c\/?/, '').replace(/\/$/, ''));
+  const codigo = decodeURIComponent(location.pathname.replace(/^\/jogos_e_resultado\/?/, '').replace(/\/$/, ''));
   if (codigo) carregarDetalhe(codigo);
   else carregarHome();
 })();

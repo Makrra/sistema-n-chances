@@ -57,26 +57,30 @@ const routes = [
   { method: 'PUT',    pattern: new URLPattern({ pathname: '/api/boloes/:id/resultado' }),           handler: (env, req, p) => jogos.putResultado(env, req, p.id) },
 
   // Rotas públicas (sem Cloudflare Access — ver seção 10: bypass precisa ser
-  // configurado à parte no Zero Trust Dashboard para /api/public/* e /c/*).
+  // configurado à parte no Zero Trust Dashboard para /api/public/* e
+  // /jogos_e_resultado/*).
   { method: 'GET',    pattern: new URLPattern({ pathname: '/api/public/boloes' }),                  handler: (env) => publico.listPublico(env) },
   { method: 'GET',    pattern: new URLPattern({ pathname: '/api/public/boloes/:codigo' }),          handler: (env, req, p) => publico.detailPublico(env, p.codigo) },
 ];
+
+const ROTA_PUBLICA = '/jogos_e_resultado';
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // Página pública (home /c/ e detalhe /c/:codigo) — bundle estático
-    // próprio (public/c.html), servido explicitamente aqui em vez de cair no
-    // fallback SPA do admin (single-page-application em [assets], que serviria
-    // index.html — a tela do organizador — para qualquer caminho
-    // desconhecido). '/c/*' precisa estar em run_worker_first no
+    // Página pública (home /jogos_e_resultado/ e detalhe
+    // /jogos_e_resultado/:codigo) — bundle estático próprio
+    // (public/jogos-e-resultado.html), servido explicitamente aqui em vez de
+    // cair no fallback SPA do admin (single-page-application em [assets], que
+    // serviria index.html — a tela do organizador — para qualquer caminho
+    // desconhecido). O prefixo precisa estar em run_worker_first no
     // wrangler.toml para as requisições chegarem até aqui; ver seção 10 do
     // documento. O roteamento entre lista e detalhe é feito no próprio
-    // client-side de c.html, lendo location.pathname.
-    if (url.pathname === '/c' || url.pathname.startsWith('/c/')) {
+    // client-side de jogos-e-resultado.html, lendo location.pathname.
+    if (url.pathname === ROTA_PUBLICA || url.pathname.startsWith(ROTA_PUBLICA + '/')) {
       const assetUrl = new URL(request.url);
-      assetUrl.pathname = '/c.html';
+      assetUrl.pathname = '/jogos-e-resultado.html';
       return env.ASSETS.fetch(new Request(assetUrl, request));
     }
 

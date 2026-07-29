@@ -26,7 +26,7 @@ export async function putEstrategia(env, request, bolaoId) {
   await getBolaoOrThrow(env, bolaoId);
   const body = await readJson(request);
   const tipo = body.tipo || 'SIMPLES';
-  if (!['SIMPLES', 'DESDOBRAMENTO', 'FECHAMENTO'].includes(tipo)) {
+  if (!['SIMPLES', 'DESDOBRAMENTO', 'FECHAMENTO', 'SURPRESINHA'].includes(tipo)) {
     throw new ApiError(400, 'Tipo de estratégia inválido.');
   }
   const dezenasBase = Array.isArray(body.dezenas_base) && body.dezenas_base.length

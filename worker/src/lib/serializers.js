@@ -155,15 +155,22 @@ export function serializeResultado(row) {
 }
 
 // Serializer público do bolão: só os campos que a página pública (/c/) pode
-// mostrar — nunca telefone, nome ou valores de participação (ver seção 9.2/10
-// do documento). Usado tanto na home pública (lista) quanto no detalhe.
+// mostrar — nunca telefone, nome de participante ou valores de participação
+// (ver seção 9.2/10 do documento). Usado tanto na home pública (lista) quanto
+// no detalhe. `nome` aqui é o nome do BOLÃO (só existe pra sorteios
+// especiais, ex. "Lotofácil da Independência") — não tem relação com dado
+// pessoal de cliente.
 export function serializePublicoResumo(row) {
   return {
     codigo: row.codigo,
     loteria: row.loteria,
+    tipo_sorteio: row.tipo_sorteio,
+    nome: row.tipo_sorteio === 'especial' ? row.nome : null,
     concurso: row.concurso,
     data_sorteio: row.data_sorteio,
     status: row.status,
+    quantidade_cotas: row.quantidade_cotas,
+    premio_estimado: row.premio_estimado,
     valor_cota_inteira: fromCentavos(row.valor_cota_inteira_centavos),
     valor_cota_meia: fromCentavos(row.valor_cota_meia_centavos),
   };

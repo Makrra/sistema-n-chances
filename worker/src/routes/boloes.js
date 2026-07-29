@@ -40,7 +40,10 @@ export async function detail(env, id) {
 // participação de cortesia do organizador, atômico.
 export async function create(env, request) {
   const body = await readJson(request);
-  const nome = body.nome || null;
+  // `nome` só existe pra sorteios especiais (nome próprio divulgado pela
+  // Caixa, ex. "Lotofácil da Independência") — não confia no client, reforça
+  // aqui mesmo se o tipo não for 'especial'.
+  const nome = body.tipo_sorteio === 'especial' ? (body.nome || null) : null;
   const concurso = requireNumber(body, 'concurso');
   const dataSorteio = requireString(body, 'data_sorteio');
   const cotasReservadas = Number(body.cotas_reservadas) || 0;
@@ -90,16 +93,19 @@ export async function update(env, request, id) {
   const body = await readJson(request);
   const concurso = requireNumber(body, 'concurso');
   const dataSorteio = requireString(body, 'data_sorteio');
+  // `nome` só existe pra sorteios especiais — trocar de tipo limpa um nome
+  // especial antigo, igual ao comportamento do form (não confia no client).
+  const nome = body.tipo_sorteio === 'especial' ? (body.nome || null) : null;
 
   let result;
   try {
     result = await env.DB.prepare(`
-      UPDATE boloes SET loteria=?, tipo_sorteio=?, concurso=?, data_sorteio=?,
+      UPDATE boloes SET nome=?, loteria=?, tipo_sorteio=?, concurso=?, data_sorteio=?,
         valor_cota_inteira_centavos=?, valor_cota_meia_centavos=?, quantidade_cotas=?,
         premio_ganho_centavos=?, custo_centavos=?, observacao=?
       WHERE id=?
     `).bind(
-      body.loteria || null, body.tipo_sorteio || null, concurso, dataSorteio,
+      nome, body.loteria || null, body.tipo_sorteio || null, concurso, dataSorteio,
       toCentavos(body.valor_cota_inteira), toCentavos(body.valor_cota_meia),
       body.quantidade_cotas != null ? Number(body.quantidade_cotas) : null,
       toCentavos(body.premio_ganho), toCentavos(body.custo), body.observacao || null, id

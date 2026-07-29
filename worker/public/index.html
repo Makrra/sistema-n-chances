@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<meta name="theme-color" content="#1a1a2e">
+<meta name="theme-color" content="#12201a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="N-Chances">
@@ -12,18 +12,28 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>N-Chances | Bolões</title>
 <style>
+/* Tipografia oficial da marca (ver [Descritivo] N Chances.pdf) — usada só no
+   wordmark "Chances" do cabeçalho, não no restante do texto do app. */
+@font-face {
+  font-family: 'RBNo3.1';
+  src: url('fonts/RBNo3.1-Extrabold.otf') format('opentype');
+  font-weight: 800;
+  font-display: swap;
+}
 :root {
-  --bg: #0f0f1a;
-  --surface: #1a1a2e;
-  --card: #16213e;
-  --accent: #e94560;
-  --accent2: #0f3460;
-  --green: #00b894;
-  --yellow: #fdcb6e;
-  --red: #d63031;
-  --text: #e2e2e2;
-  --muted: #8892a4;
-  --border: #2a2a45;
+  /* Paleta oficial da marca (ver [Descritivo] N Chances.pdf) */
+  --bg: #0c1712;
+  --surface: #12201a;
+  --card: #16251e;
+  --accent: #A4C73E;
+  --accent2: #42525A;
+  --green: #3C9742;
+  --yellow: #c99a3d;
+  --red: #78170E;
+  --info: #8fa5ad;
+  --text: #eef1ec;
+  --muted: #7f9086;
+  --border: #223229;
   --radius: 12px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -42,7 +52,12 @@ body {
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 100;
 }
-.header h1 { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
+.header-brand { display: flex; align-items: center; gap: 8px; }
+.header-brand svg { width: 24px; height: auto; flex-shrink: 0; }
+.header-brand .word {
+  font-family: 'RBNo3.1', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 800; font-size: 1.15rem; color: var(--text);
+}
 .header .subtitle { font-size: 0.75rem; color: var(--muted); }
 /* NAV */
 .nav {
@@ -80,10 +95,10 @@ body {
   font-size: 0.65rem; font-weight: 700; padding: 3px 8px;
   border-radius: 20px; text-transform: uppercase; letter-spacing: .5px;
 }
-.badge-green  { background: rgba(0,184,148,.15); color: var(--green); }
-.badge-yellow { background: rgba(253,203,110,.15); color: var(--yellow); }
-.badge-red    { background: rgba(214,48,49,.15); color: var(--red); }
-.badge-blue   { background: rgba(15,52,96,.5); color: #74b9ff; }
+.badge-green  { background: rgba(60,151,66,.15); color: var(--green); }
+.badge-yellow { background: rgba(201,154,61,.15); color: var(--yellow); }
+.badge-red    { background: rgba(120,23,14,.15); color: var(--red); }
+.badge-blue   { background: rgba(66,82,90,.5); color: var(--info); }
 /* STATS ROW */
 .stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
 .stat-card {
@@ -145,7 +160,7 @@ select.form-control option { background: var(--bg); }
   width: 40px; height: 40px; border-radius: 50%;
   background: var(--accent2); display: flex; align-items: center;
   justify-content: center; font-weight: 700; font-size: 0.9rem;
-  color: #74b9ff; flex-shrink: 0;
+  color: var(--info); flex-shrink: 0;
 }
 .item-info { flex: 1; min-width: 0; }
 .item-name { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -223,7 +238,19 @@ select.form-control option { background: var(--bg); }
 
 <div class="header">
   <div>
-    <h1>N-Chances</h1>
+    <div class="header-brand">
+      <svg viewBox="-10 -10 350 466" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="ncLogoGrad" x1="5602.47" y1="718.3" x2="5389.84" y2="414.63" gradientTransform="translate(5689.14 806.69) rotate(-180)" gradientUnits="userSpaceOnUse">
+            <stop offset=".4" stop-color="#a4c73e"/>
+            <stop offset=".71" stop-color="#3c9742"/>
+            <stop offset="1" stop-color="#016331"/>
+          </linearGradient>
+        </defs>
+        <path fill="url(#ncLogoGrad)" d="M50.61,443.7H124.71c46.11,0,83.49-37.38,83.49-83.49v-41.73l-55.66-55.66v97.39c0,15.37-12.46,27.83-27.83,27.83H56.18V205.59c0-17.25,13.15-24.04,17.18-25.71,4.03-1.67,18.13-6.17,30.33,6.03l26.33,26.33v-.17l97.85,97.85v.18s47.9,47.89,47.9,47.89c8.24,8.24,18.81,13.14,29.86,14.37,9.69,1.08,19.74-.65,28.95-5.49,16.67-8.76,26.71-26.47,26.71-45.3V52.33c0-27.67-22.43-50.09-50.09-50.09h-75.16c-46.11,0-83.49,37.38-83.49,83.49v42.29l55.66,55.66V85.73c0-15.37,12.46-27.83,27.83-27.83h47.33c12.3,0,22.26,9.97,22.26,22.26v228.97l-76.64-76.64v.21s-88.94-88.95-88.94-88.95c-23.07-21.03-54.5-27.34-83.87-16.84-1.38,.49-2.76,.97-4.12,1.54C20.26,141.62,.52,171.18,.52,205.59v188.01c0,27.67,22.43,50.09,50.09,50.09Z"/>
+      </svg>
+      <span class="word">Chances</span>
+    </div>
     <div class="subtitle">Sistema de Bolões</div>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
@@ -339,7 +366,7 @@ select.form-control option { background: var(--bg); }
       </div>
       <div class="form-group">
         <label class="form-label">Tipo de Sorteio</label>
-        <select class="form-control" id="nb-tipo-sorteio">
+        <select class="form-control" id="nb-tipo-sorteio" onchange="toggleNomeEspecial('nb')">
           <option value="acumulado">Acumulado</option>
           <option value="simples">Simples</option>
           <option value="surpresinha">Surpresinha</option>
@@ -347,6 +374,10 @@ select.form-control option { background: var(--bg); }
           <option value="especial">Especial</option>
         </select>
       </div>
+    </div>
+    <div class="form-group" id="nb-nome-especial-group" style="display:none">
+      <label class="form-label">Nome da Edição Especial</label>
+      <input class="form-control" id="nb-nome-especial" placeholder="Ex: Lotofácil da Independência">
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group">
@@ -434,7 +465,7 @@ select.form-control option { background: var(--bg); }
       </div>
       <div class="form-group">
         <label class="form-label">Tipo de Sorteio</label>
-        <select class="form-control" id="eb-tipo-sorteio">
+        <select class="form-control" id="eb-tipo-sorteio" onchange="toggleNomeEspecial('eb')">
           <option value="acumulado">Acumulado</option>
           <option value="simples">Simples</option>
           <option value="surpresinha">Surpresinha</option>
@@ -442,6 +473,10 @@ select.form-control option { background: var(--bg); }
           <option value="especial">Especial</option>
         </select>
       </div>
+    </div>
+    <div class="form-group" id="eb-nome-especial-group" style="display:none">
+      <label class="form-label">Nome da Edição Especial</label>
+      <input class="form-control" id="eb-nome-especial" placeholder="Ex: Lotofácil da Independência">
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group">
@@ -750,14 +785,15 @@ const TIPO_SORTEIO_LABEL = {
   teimosinha: 'TEIMOSINHA', especial: 'ESPECIAL',
 };
 
-// O cadastro de bolão não pede mais nome próprio (loteria+tipo+concurso já
-// identifica) — bolões antigos que ainda têm um nome customizado continuam
-// mostrando ele; os novos caem no fallback composto.
+// Título sempre composto a partir de loteria + tipo + concurso — o campo
+// `nome` só é usado (e só existe) para sorteios especiais, que têm nome
+// próprio divulgado pela Caixa (ex.: "LOTOFÁCIL DA INDEPENDÊNCIA"),
+// substituindo o rótulo genérico "ESPECIAL" nesse caso.
 function tituloBolao(b) {
-  if (b.nome) return b.nome;
   const loteriaLabel = LOTERIA_LABEL[b.loteria] || (b.loteria || 'Bolão').toUpperCase();
-  const tipoLabel = TIPO_SORTEIO_LABEL[b.tipo_sorteio] || '';
-  return [loteriaLabel, tipoLabel].filter(Boolean).join(' ');
+  const tipoLabel = (b.tipo_sorteio === 'especial' && b.nome) ? b.nome.toUpperCase() : (TIPO_SORTEIO_LABEL[b.tipo_sorteio] || '');
+  const base = [loteriaLabel, tipoLabel].filter(Boolean).join(' ');
+  return b.concurso ? `${base} #${b.concurso}` : base;
 }
 
 // ============================================================
@@ -840,10 +876,13 @@ function descreverCotas(cotas) {
 
 // Monta a mensagem de comprovante enviada ao participante via WhatsApp
 function montarMensagemComprovante(bolao, cotas, posicao, saldo, part = {}) {
-  // Título vem sempre dos campos estruturados (loteria/tipo_sorteio/concurso),
-  // não do campo "nome" (texto livre, pode estar desatualizado/inconsistente).
+  // Título vem dos campos estruturados (loteria/tipo_sorteio/concurso). Em
+  // sorteios especiais, o nome próprio (ex. "Lotofácil da Independência")
+  // substitui o rótulo genérico "ESPECIAL".
   const loteriaLabel = LOTERIA_LABEL[bolao.loteria] || (bolao.loteria || '').toUpperCase();
-  const tipoSorteioLabel = TIPO_SORTEIO_LABEL[bolao.tipo_sorteio] || '';
+  const tipoSorteioLabel = (bolao.tipo_sorteio === 'especial' && bolao.nome)
+    ? bolao.nome.toUpperCase()
+    : (TIPO_SORTEIO_LABEL[bolao.tipo_sorteio] || '');
   // Sem "#concurso" aqui — ele já aparece mais adiante na mesma frase
   // ("no sorteio do concurso *N*"), ficaria repetido.
   const tituloBolaо = [loteriaLabel, tipoSorteioLabel].filter(Boolean).join(' ');
@@ -1111,7 +1150,6 @@ function renderBoloes() {
         ${statusBadge(b.status)}
       </div>
       <div style="display:flex;gap:16px;font-size:.8rem;color:var(--muted);margin-top:6px;flex-wrap:wrap">
-        <span>Concurso: #${b.concurso || '—'}</span>
         <span>Cota: ${fmtMoeda(b.valor_cota_inteira)}</span>
         <span>Meia: ${fmtMoeda(b.valor_cota_meia)}</span>
         <span>Cotas: ${ocupadas}/${b.quantidade_cotas || '—'}</span>
@@ -1122,9 +1160,17 @@ function renderBoloes() {
   }).join('');
 }
 
+// Sorteios especiais (Mega da Virada, Lotofácil da Independência etc.) têm
+// nome próprio divulgado pela Caixa — mostra o campo só nesse caso.
+function toggleNomeEspecial(prefix) {
+  const ehEspecial = document.getElementById(`${prefix}-tipo-sorteio`).value === 'especial';
+  document.getElementById(`${prefix}-nome-especial-group`).style.display = ehEspecial ? '' : 'none';
+}
+
 async function criarBolao() {
   const loteria      = document.getElementById('nb-loteria').value;
   const tipoSorteio  = document.getElementById('nb-tipo-sorteio').value;
+  const nomeEspecial = document.getElementById('nb-nome-especial').value.trim();
   const concurso     = document.getElementById('nb-concurso').value;
   const data         = document.getElementById('nb-data').value;
   const valor        = parseFloat(document.getElementById('nb-valor').value) || 0;
@@ -1140,6 +1186,7 @@ async function criarBolao() {
   if (cotasReservadas > cotas) { toast('Cotas reservadas não podem ser maiores que o nº de cotas', true); return; }
   const { error } = await api.post('/boloes', {
     loteria, tipo_sorteio: tipoSorteio,
+    nome: tipoSorteio === 'especial' ? (nomeEspecial || null) : null,
     concurso: parseInt(concurso),
     data_sorteio: data,
     valor_cota_inteira: valor, valor_cota_meia: meiaCota, quantidade_cotas: cotas,
@@ -1151,9 +1198,11 @@ async function criarBolao() {
   closeModal('modal-novo-bolao');
   loadBoloes();
   // limpar form
-  ['nb-concurso','nb-data','nb-valor','nb-meia-cota','nb-custo','nb-premio-estimado','nb-jogos-descricao','nb-obs'].forEach(id => document.getElementById(id).value = '');
+  ['nb-concurso','nb-data','nb-valor','nb-meia-cota','nb-custo','nb-premio-estimado','nb-jogos-descricao','nb-obs','nb-nome-especial'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('nb-cotas').value = '1';
   document.getElementById('nb-cotas-reservadas').value = '0';
+  document.getElementById('nb-tipo-sorteio').value = 'acumulado';
+  toggleNomeEspecial('nb');
 }
 
 // ============================================================
@@ -1181,7 +1230,7 @@ async function abrirBolao(id) {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
       <div>
         <div class="modal-title" style="margin-bottom:4px">${tituloBolao(b)}</div>
-        <div style="font-size:.8rem;color:var(--muted)">${b.codigo ? b.codigo + ' • ' : ''}${b.loteria} • Concurso #${b.concurso||'—'}</div>
+        <div style="font-size:.8rem;color:var(--muted)">${b.codigo ? b.codigo + ' • ' : ''}${b.loteria}</div>
       </div>
       ${statusBadge(b.status)}
     </div>
@@ -1204,7 +1253,7 @@ async function abrirBolao(id) {
       <button class="btn btn-sm" style="background:var(--green);color:#fff" onclick="abrirJogos('${b.id}')">🎱 Jogos</button>
       ${b.status === 'ABERTO' ? `<button class="btn btn-sm" style="background:var(--yellow);color:#000" onclick="confirmarFecharBolao('${b.id}')">Fechar Bolão</button>` : ''}
       ${b.status === 'FECHADO' ? `<button class="btn btn-sm" style="background:var(--green);color:#fff" onclick="marcarSorteado('${b.id}')">Marcar Sorteado</button>` : ''}
-      <button class="btn btn-sm" style="background:var(--accent2);color:#74b9ff" onclick="abrirEditarBolao('${b.id}')">Editar</button>
+      <button class="btn btn-sm" style="background:var(--accent2);color:var(--info)" onclick="abrirEditarBolao('${b.id}')">Editar</button>
       <button class="btn btn-sm" style="background:var(--red);color:#fff" onclick="confirmarExcluirBolao('${b.id}')">Excluir</button>
       <button class="btn btn-sm" style="background:var(--border);color:var(--muted)" onclick="closeModal('modal-bolao-det')">Fechar</button>
     </div>
@@ -1250,7 +1299,7 @@ function regraLoteriaAdmin(loteria) { return LOTERIAS_CORES[loteria] || LOTERIAS
 
 function bolaAdminHtml(numero, loteria) {
   const r = regraLoteriaAdmin(loteria);
-  return `<div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:800;flex-shrink:0;background:${r.cor};color:${r.corTexto}">${String(numero).padStart(2,'0')}</div>`;
+  return `<div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:800;flex-shrink:0;background:${r.cor};color:#fff">${String(numero).padStart(2,'0')}</div>`;
 }
 
 // Espelha lib/loterias.js:parseLinhaJogo + validarJogo — validação client-side
@@ -1300,7 +1349,7 @@ async function abrirJogos(bolaoId) {
   const ocupadas = cotasOcupadas[b.id] || 0;
   const disponiveis = b.quantidade_cotas != null ? (b.quantidade_cotas - ocupadas) : null;
   const r = regraLoteriaAdmin(b.loteria);
-  const linkPublico = b.codigo ? `${location.origin}/c/${b.codigo}` : null;
+  const linkPublico = b.codigo ? `${location.origin}/jogos_e_resultado/${b.codigo}` : null;
 
   modal.innerHTML = `
     <div class="modal-title">Jogos — ${tituloBolao(b)}</div>
@@ -1322,6 +1371,7 @@ async function abrirJogos(bolaoId) {
       <label class="form-label">Tipo</label>
       <select class="form-control" id="jg-estrategia-tipo">
         <option value="SIMPLES" ${estrategia?.tipo === 'SIMPLES' || !estrategia ? 'selected' : ''}>Jogos avulsos (sem técnica)</option>
+        <option value="SURPRESINHA" ${estrategia?.tipo === 'SURPRESINHA' ? 'selected' : ''}>Surpresinha</option>
         <option value="DESDOBRAMENTO" ${estrategia?.tipo === 'DESDOBRAMENTO' ? 'selected' : ''}>Desdobramento</option>
         <option value="FECHAMENTO" ${estrategia?.tipo === 'FECHAMENTO' ? 'selected' : ''}>Fechamento</option>
       </select>
@@ -1334,7 +1384,7 @@ async function abrirJogos(bolaoId) {
       <label class="form-label">Descrição</label>
       <input class="form-control" id="jg-estrategia-desc" placeholder="Ex: Fechamento 20 dezenas em 6" value="${estrategia?.descricao ? escapeHtmlAdmin(estrategia.descricao) : ''}">
     </div>
-    <button class="btn btn-sm" style="background:var(--accent2);color:#74b9ff;margin-bottom:16px" onclick="salvarEstrategia()">Salvar estratégia</button>
+    <button class="btn btn-sm" style="background:var(--accent2);color:var(--info);margin-bottom:16px" onclick="salvarEstrategia()">Salvar estratégia</button>
 
     <div class="divider"></div>
     <div class="section-title" style="font-size:.8rem;font-weight:700;color:var(--muted);margin:12px 0 8px">JOGOS (${r.dezenasMin != null ? `${r.dezenasMin}-${r.dezenasMax} dezenas, ${r.faixaMin}-${r.faixaMax}` : 'sem validação automática'})</div>
@@ -1343,7 +1393,10 @@ async function abrirJogos(bolaoId) {
       <textarea class="form-control" id="jg-jogos-textarea" rows="6" placeholder="Ex:&#10;01 05 12 23 34 44&#10;02 06 13 24 35 45" oninput="renderJogosPreview()">${jogosExistentes.map(j => j.dezenas.map(d => String(d).padStart(2,'0')).join(' ')).join('\n')}</textarea>
     </div>
     <div id="jg-jogos-preview" style="margin-bottom:10px"></div>
-    <button class="btn btn-sm" style="background:var(--green);color:#fff;margin-bottom:16px" onclick="salvarJogos()">Salvar jogos</button>
+    <div style="display:flex;gap:6px;margin-bottom:16px">
+      <button class="btn btn-sm" style="background:var(--green);color:#fff" onclick="salvarJogos()">Salvar jogos</button>
+      <button class="btn btn-sm" style="background:var(--accent2);color:var(--info)" onclick="copiarJogos()">Copiar jogos</button>
+    </div>
 
     <div class="divider"></div>
     <div class="section-title" style="font-size:.8rem;font-weight:700;color:var(--muted);margin:12px 0 8px">RESULTADO DO SORTEIO</div>
@@ -1391,7 +1444,8 @@ function renderJogosPreview() {
     if (dezenas == null) return; // linha em branco, ignora
     const { valido, erro } = validarJogoAdmin(jgBolao.loteria, dezenas);
     if (valido) {
-      html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">${dezenas.map(d => bolaAdminHtml(d, jgBolao.loteria)).join('')}</div>`;
+      const ordenadas = dezenas.slice().sort((a, b) => a - b);
+      html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">${ordenadas.map(d => bolaAdminHtml(d, jgBolao.loteria)).join('')}</div>`;
     } else {
       html += `<div style="font-size:.75rem;color:var(--red);margin-bottom:6px">Linha ${i+1}: ${erro}</div>`;
     }
@@ -1409,21 +1463,47 @@ async function salvarEstrategia() {
   toast('Estratégia salva!');
 }
 
-async function salvarJogos() {
+// Lê e valida o textarea de jogos, já com as dezenas de cada jogo em ordem
+// crescente (mesma ordem usada no preview e no salvamento). Retorna null (e
+// já mostra o toast do erro) se alguma linha não passar na validação.
+function extrairJogosValidos() {
   const textarea = document.getElementById('jg-jogos-textarea');
   const linhas = textarea.value.split('\n');
-  const jogosParaSalvar = [];
+  const jogos = [];
   for (let i = 0; i < linhas.length; i++) {
     const dezenas = parseLinhaJogoAdmin(linhas[i]);
     if (dezenas == null) continue;
     const { valido, erro } = validarJogoAdmin(jgBolao.loteria, dezenas);
-    if (!valido) { toast(`Linha ${i+1}: ${erro}`, true); return; }
-    jogosParaSalvar.push(dezenas);
+    if (!valido) { toast(`Linha ${i+1}: ${erro}`, true); return null; }
+    jogos.push(dezenas.slice().sort((a, b) => a - b));
   }
-  if (!jogosParaSalvar.length) { toast('Cole ao menos um jogo válido.', true); return; }
+  if (!jogos.length) { toast('Cole ao menos um jogo válido.', true); return null; }
+  return jogos;
+}
+
+async function salvarJogos() {
+  const jogosParaSalvar = extrairJogosValidos();
+  if (!jogosParaSalvar) return;
   const { error } = await api.put(`/boloes/${jgBolao.id}/jogos`, { jogos: jogosParaSalvar });
   if (error) { toast('Erro: ' + error.message, true); return; }
   toast(`${jogosParaSalvar.length} jogo(s) salvo(s)!`);
+}
+
+// Copia os jogos no formato "10,15,53,55,35,06", (dezenas com 2 algarismos,
+// separadas por vírgula, entre aspas, com uma vírgula extra fora das aspas
+// no fim de cada linha) — um jogo por linha, pra colar em outro sistema.
+async function copiarJogos() {
+  const jogos = extrairJogosValidos();
+  if (!jogos) return;
+  const texto = jogos
+    .map(dezenas => `"${dezenas.map(d => String(d).padStart(2, '0')).join(',')}",`)
+    .join('\n');
+  try {
+    await navigator.clipboard.writeText(texto);
+    toast(`${jogos.length} jogo(s) copiado(s)!`);
+  } catch (e) {
+    toast('Não foi possível copiar automaticamente. Selecione e copie manualmente.', true);
+  }
 }
 
 function renderFaixas() {
@@ -1451,7 +1531,7 @@ function removerFaixa(i) {
 async function salvarResultado() {
   const dezenasRaw = document.getElementById('jg-resultado-dezenas').value.trim();
   if (!dezenasRaw) { toast('Informe as dezenas sorteadas.', true); return; }
-  const dezenas_sorteadas = dezenasRaw.split(/[\s,;]+/).filter(Boolean).map(Number);
+  const dezenas_sorteadas = dezenasRaw.split(/[\s,;]+/).filter(Boolean).map(Number).sort((a, b) => a - b);
   const data_apuracao = document.getElementById('jg-resultado-data').value || null;
   const premiacoes = jgFaixas.filter(f => f.faixa);
   const { error } = await api.put(`/boloes/${jgBolao.id}/resultado`, { dezenas_sorteadas, data_apuracao, premiacoes, fonte: 'manual' });
@@ -1540,7 +1620,7 @@ async function loadPendentes() {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px;flex-wrap:wrap">
         <div style="font-size:.85rem;color:var(--muted)">${descreverCotas(p.cotas)} • ${fmtMoeda(p.valor_total)}</div>
         <div style="display:flex;gap:4px">
-          <button class="btn btn-sm" style="background:var(--accent2);color:#74b9ff" onclick="event.stopPropagation();abrirEditarPartDaLista('${p.id}')">Editar</button>
+          <button class="btn btn-sm" style="background:var(--accent2);color:var(--info)" onclick="event.stopPropagation();abrirEditarPartDaLista('${p.id}')">Editar</button>
           <button class="btn btn-success btn-sm" onclick="event.stopPropagation();marcarPagoDaLista('${p.id}','${p.telefone}','${p.forma_pagamento}',${p.valor_total})">Marcar Pago</button>
         </div>
       </div>
@@ -1636,6 +1716,8 @@ function abrirEditarBolao(id) {
   document.getElementById('eb-id').value = b.id;
   document.getElementById('eb-loteria').value = b.loteria || 'mega-sena';
   document.getElementById('eb-tipo-sorteio').value = b.tipo_sorteio || 'acumulado';
+  document.getElementById('eb-nome-especial').value = b.tipo_sorteio === 'especial' ? (b.nome || '') : '';
+  toggleNomeEspecial('eb');
   document.getElementById('eb-concurso').value = b.concurso || '';
   document.getElementById('eb-data').value = b.data_sorteio || '';
   document.getElementById('eb-valor').value = b.valor_cota_inteira || 0;
@@ -1652,6 +1734,7 @@ async function salvarEdicaoBolao() {
   const id          = document.getElementById('eb-id').value;
   const loteria     = document.getElementById('eb-loteria').value;
   const tipoSorteio = document.getElementById('eb-tipo-sorteio').value;
+  const nomeEspecial = document.getElementById('eb-nome-especial').value.trim();
   const concurso    = document.getElementById('eb-concurso').value;
   const data        = document.getElementById('eb-data').value;
   const valor       = parseFloat(document.getElementById('eb-valor').value) || 0;
@@ -1664,6 +1747,7 @@ async function salvarEdicaoBolao() {
   if (!data) { toast('Informe a data do sorteio', true); return; }
   const { error } = await api.put(`/boloes/${id}`, {
     loteria, tipo_sorteio: tipoSorteio,
+    nome: tipoSorteio === 'especial' ? (nomeEspecial || null) : null,
     concurso: parseInt(concurso), data_sorteio: data,
     valor_cota_inteira: valor, valor_cota_meia: meiaCota, quantidade_cotas: cotas,
     premio_ganho: premio, custo, observacao: obs || null,
@@ -1907,7 +1991,7 @@ function renderParticipantesLista(filter) {
           ${p.telefone !== TELEFONE_ORGANIZADOR
             ? `<a class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:#25D366;color:#fff;text-decoration:none" href="${linkComprovanteWhatsApp(b, p)}" target="_blank" onclick="marcarComprovanteEnviado('${p.id}')">Comprovante</a>`
             : ''}
-          <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--accent2);color:#74b9ff" onclick="abrirEditarPart('${p.id}','${b.id}')">Editar</button>
+          <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--accent2);color:var(--info)" onclick="abrirEditarPart('${p.id}','${b.id}')">Editar</button>
           <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--red);color:#fff" onclick="excluirParticipacao('${p.id}','${b.id}')">Excluir</button>
         </div>
       </div>`;
@@ -2050,7 +2134,7 @@ function renderClientes(list) {
           </div>
           <div style="display:flex;align-items:center;gap:8px">
             <div class="${saldoCls}">${fmtMoeda(saldo)}</div>
-            <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--accent2);color:#74b9ff;white-space:nowrap"
+            <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--accent2);color:var(--info);white-space:nowrap"
               onclick="event.stopPropagation();abrirEditarCliente('${c.telefone}')">Editar</button>
           </div>
         </div>
@@ -2148,7 +2232,7 @@ async function abrirExtrato(telefone, nome) {
     </div>
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
       <button class="btn btn-primary btn-sm" onclick="abrirLancamento('${telefone}')">+ Lançamento</button>
-      <button class="btn btn-sm" style="background:var(--accent2);color:#74b9ff" onclick="abrirSolicitarSaque('${telefone}','${nome}')">Solicitar Saque</button>
+      <button class="btn btn-sm" style="background:var(--accent2);color:var(--info)" onclick="abrirSolicitarSaque('${telefone}','${nome}')">Solicitar Saque</button>
     </div>
     <div class="divider"></div>
     ${items.length === 0 ? '<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px">Nenhum lançamento</div>' :
