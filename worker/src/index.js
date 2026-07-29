@@ -6,6 +6,8 @@ import * as participacoes from './routes/participacoes.js';
 import * as usuarios from './routes/usuarios.js';
 import * as extrato from './routes/extrato.js';
 import * as saques from './routes/saques.js';
+import * as jogos from './routes/jogos.js';
+import * as publico from './routes/public.js';
 
 async function healthCheck(env) {
   const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM usuarios').first();
@@ -43,11 +45,41 @@ const routes = [
   { method: 'GET',    pattern: new URLPattern({ pathname: '/api/saques' }),                         handler: (env, req) => saques.list(env, req) },
   { method: 'POST',   pattern: new URLPattern({ pathname: '/api/saques' }),                         handler: (env, req) => saques.create(env, req) },
   { method: 'PATCH',  pattern: new URLPattern({ pathname: '/api/saques/:id' }),                     handler: (env, req, p) => saques.process(env, req, p.id) },
+
+  // Jogos / estratégia / resultado do sorteio (organizador — atrás do
+  // Cloudflare Access, igual às rotas acima). Ver
+  // docs/funcionalidade-jogos-resultado-sorteio.md, seção 7.
+  { method: 'GET',    pattern: new URLPattern({ pathname: '/api/boloes/:id/estrategia' }),          handler: (env, req, p) => jogos.getEstrategia(env, p.id) },
+  { method: 'PUT',    pattern: new URLPattern({ pathname: '/api/boloes/:id/estrategia' }),          handler: (env, req, p) => jogos.putEstrategia(env, req, p.id) },
+  { method: 'GET',    pattern: new URLPattern({ pathname: '/api/boloes/:id/jogos' }),               handler: (env, req, p) => jogos.getJogos(env, p.id) },
+  { method: 'PUT',    pattern: new URLPattern({ pathname: '/api/boloes/:id/jogos' }),               handler: (env, req, p) => jogos.putJogos(env, req, p.id) },
+  { method: 'GET',    pattern: new URLPattern({ pathname: '/api/boloes/:id/resultado' }),           handler: (env, req, p) => jogos.getResultado(env, p.id) },
+  { method: 'PUT',    pattern: new URLPattern({ pathname: '/api/boloes/:id/resultado' }),           handler: (env, req, p) => jogos.putResultado(env, req, p.id) },
+
+  // Rotas públicas (sem Cloudflare Access — ver seção 10: bypass precisa ser
+  // configurado à parte no Zero Trust Dashboard para /api/public/* e /c/*).
+  { method: 'GET',    pattern: new URLPattern({ pathname: '/api/public/boloes' }),                  handler: (env) => publico.listPublico(env) },
+  { method: 'GET',    pattern: new URLPattern({ pathname: '/api/public/boloes/:codigo' }),          handler: (env, req, p) => publico.detailPublico(env, p.codigo) },
 ];
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    // Página pública (home /c/ e detalhe /c/:codigo) — bundle estático
+    // próprio (public/c.html), servido explicitamente aqui em vez de cair no
+    // fallback SPA do admin (single-page-application em [assets], que serviria
+    // index.html — a tela do organizador — para qualquer caminho
+    // desconhecido). '/c/*' precisa estar em run_worker_first no
+    // wrangler.toml para as requisições chegarem até aqui; ver seção 10 do
+    // documento. O roteamento entre lista e detalhe é feito no próprio
+    // client-side de c.html, lendo location.pathname.
+    if (url.pathname === '/c' || url.pathname.startsWith('/c/')) {
+      const assetUrl = new URL(request.url);
+      assetUrl.pathname = '/c.html';
+      return env.ASSETS.fetch(new Request(assetUrl, request));
+    }
+
     if (!url.pathname.startsWith('/api/')) {
       return json({ error: 'not_found' }, 404);
     }

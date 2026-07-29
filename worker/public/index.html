@@ -407,6 +407,13 @@ select.form-control option { background: var(--bg); }
   </div>
 </div>
 
+<!-- Modal: Jogos / Estratégia / Resultado do sorteio -->
+<div class="modal-overlay" id="modal-jogos">
+  <div class="modal" id="modal-jogos-content">
+    <!-- preenchido dinamicamente por abrirJogos() -->
+  </div>
+</div>
+
 <!-- Modal: Editar Bolão -->
 <div class="modal-overlay" id="modal-editar-bolao">
   <div class="modal">
@@ -1194,6 +1201,7 @@ async function abrirBolao(id) {
     </div>` : ''}
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
       <button class="btn btn-primary btn-sm" onclick="abrirAddPart('${b.id}')">+ Participante</button>
+      <button class="btn btn-sm" style="background:var(--green);color:#fff" onclick="abrirJogos('${b.id}')">🎱 Jogos</button>
       ${b.status === 'ABERTO' ? `<button class="btn btn-sm" style="background:var(--yellow);color:#000" onclick="confirmarFecharBolao('${b.id}')">Fechar Bolão</button>` : ''}
       ${b.status === 'FECHADO' ? `<button class="btn btn-sm" style="background:var(--green);color:#fff" onclick="marcarSorteado('${b.id}')">Marcar Sorteado</button>` : ''}
       <button class="btn btn-sm" style="background:var(--accent2);color:#74b9ff" onclick="abrirEditarBolao('${b.id}')">Editar</button>
@@ -1212,6 +1220,243 @@ async function abrirBolao(id) {
     <div id="bolao-parts-list"></div>
   `;
   renderParticipantesLista('todos');
+}
+
+// ============================================================
+// JOGOS / ESTRATÉGIA / RESULTADO DO SORTEIO
+// (ver docs/funcionalidade-jogos-resultado-sorteio.md)
+//
+// A "seleção do bolão" do UC02 é a própria navegação que já existe: o
+// organizador abre um bolão na aba Bolões (já filtrável por Aberto) e clica
+// em "🎱 Jogos" — em vez de duplicar isso num seletor à parte, o card de
+// referência abaixo (código, loteria, concurso, valores, cotas disponíveis)
+// cumpre o papel de conferência antes de colar os jogos.
+//
+// Cor por loteria espelha worker/src/lib/loterias.js (Paleta jogos oficial
+// da Caixa) — duplicado aqui porque este HTML é um bundle estático sem
+// import compartilhado com o Worker, mesmo padrão já usado em
+// LOTERIA_LABEL/SIGLA_LOTERIA.
+// ============================================================
+const LOTERIAS_CORES = {
+  'mega-sena':  { nome: 'Mega-Sena',  dezenasMin: 6,  dezenasMax: 15, faixaMin: 1, faixaMax: 60,  cor: '#00AB67', corTexto: '#000000' },
+  'lotofacil':  { nome: 'Lotofácil',  dezenasMin: 15, dezenasMax: 20, faixaMin: 1, faixaMax: 25,  cor: '#803594', corTexto: '#FFFFFF' },
+  'quina':      { nome: 'Quina',      dezenasMin: 5,  dezenasMax: 15, faixaMin: 1, faixaMax: 80,  cor: '#005DA4', corTexto: '#FFFFFF' },
+  'lotomania':  { nome: 'Lotomania',  dezenasMin: 50, dezenasMax: 50, faixaMin: 1, faixaMax: 100, cor: '#F99D1C', corTexto: '#000000' },
+  'dupla-sena': { nome: 'Dupla Sena', dezenasMin: 6,  dezenasMax: 15, faixaMin: 1, faixaMax: 50,  cor: '#A62A52', corTexto: '#FFFFFF' },
+  'timemania':  { nome: 'Timemania',  dezenasMin: 10, dezenasMax: 10, faixaMin: 1, faixaMax: 80,  cor: '#FFDD00', corTexto: '#000000' },
+  'outro':      { nome: 'Sorteio',    dezenasMin: null, dezenasMax: null, faixaMin: null, faixaMax: null, cor: '#6B7280', corTexto: '#FFFFFF' },
+};
+function regraLoteriaAdmin(loteria) { return LOTERIAS_CORES[loteria] || LOTERIAS_CORES['outro']; }
+
+function bolaAdminHtml(numero, loteria) {
+  const r = regraLoteriaAdmin(loteria);
+  return `<div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:800;flex-shrink:0;background:${r.cor};color:${r.corTexto}">${String(numero).padStart(2,'0')}</div>`;
+}
+
+// Espelha lib/loterias.js:parseLinhaJogo + validarJogo — validação client-side
+// só para feedback imediato; o servidor sempre revalida (não confia no client).
+function parseLinhaJogoAdmin(linha) {
+  const limpa = linha.trim();
+  if (!limpa) return null;
+  return limpa.split(/[\s,;]+/).filter(Boolean).map(p => parseInt(p, 10));
+}
+function validarJogoAdmin(loteria, dezenas) {
+  if (!dezenas.length) return { valido: false, erro: 'Jogo vazio.' };
+  if (dezenas.some(d => Number.isNaN(d))) return { valido: false, erro: 'Use só números.' };
+  if (new Set(dezenas).size !== dezenas.length) return { valido: false, erro: 'Dezena repetida.' };
+  const r = regraLoteriaAdmin(loteria);
+  if (r.dezenasMin != null && dezenas.length < r.dezenasMin) return { valido: false, erro: `Mín. ${r.dezenasMin} dezenas.` };
+  if (r.dezenasMax != null && dezenas.length > r.dezenasMax) return { valido: false, erro: `Máx. ${r.dezenasMax} dezenas.` };
+  if (r.faixaMin != null) {
+    const fora = dezenas.find(d => d < r.faixaMin || d > r.faixaMax);
+    if (fora != null) return { valido: false, erro: `Dezena ${fora} fora de ${r.faixaMin}-${r.faixaMax}.` };
+  }
+  return { valido: true, erro: null };
+}
+
+let jgBolao = null;       // bolão atual (do modal Jogos)
+let jgFaixas = [];        // linhas do form de premiação do resultado
+
+async function abrirJogos(bolaoId) {
+  const modal = document.getElementById('modal-jogos-content');
+  modal.innerHTML = '<div class="loading"><div class="spinner"></div>Carregando...</div>';
+  openModal('modal-jogos');
+
+  const [bolaoRes, estRes, jogosRes, resRes] = await Promise.all([
+    api.get(`/boloes/${bolaoId}`),
+    api.get(`/boloes/${bolaoId}/estrategia`),
+    api.get(`/boloes/${bolaoId}/jogos`),
+    api.get(`/boloes/${bolaoId}/resultado`),
+  ]);
+  if (bolaoRes.error) { toast('Erro ao carregar bolão: ' + bolaoRes.error.message, true); closeModal('modal-jogos'); return; }
+
+  const b = bolaoRes.data.bolao;
+  jgBolao = b;
+  const estrategia = estRes.data?.estrategia || null;
+  const jogosExistentes = jogosRes.data?.jogos || [];
+  const resultado = resRes.data?.resultado || null;
+  jgFaixas = resultado?.premiacoes?.map(p => ({ ...p, valor_rateio: p.valor_rateio_centavos != null ? p.valor_rateio_centavos / 100 : null })) || [];
+
+  const ocupadas = cotasOcupadas[b.id] || 0;
+  const disponiveis = b.quantidade_cotas != null ? (b.quantidade_cotas - ocupadas) : null;
+  const r = regraLoteriaAdmin(b.loteria);
+  const linkPublico = b.codigo ? `${location.origin}/c/${b.codigo}` : null;
+
+  modal.innerHTML = `
+    <div class="modal-title">Jogos — ${tituloBolao(b)}</div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Referência do bolão (conferência)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:.82rem">
+        <div><b>Código:</b> ${b.codigo || '—'}</div>
+        <div><b>Loteria:</b> ${r.nome}</div>
+        <div><b>Concurso:</b> #${b.concurso ?? '—'}</div>
+        <div><b>Cota inteira:</b> ${fmtMoeda(b.valor_cota_inteira)}</div>
+        <div><b>Meia cota:</b> ${fmtMoeda(b.valor_cota_meia)}</div>
+        <div><b>Cotas disponíveis:</b> ${disponiveis != null ? disponiveis : '—'}/${b.quantidade_cotas ?? '—'}</div>
+      </div>
+    </div>
+
+    <div class="section-title" style="font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:8px">ESTRATÉGIA</div>
+    <div class="form-group">
+      <label class="form-label">Tipo</label>
+      <select class="form-control" id="jg-estrategia-tipo">
+        <option value="SIMPLES" ${estrategia?.tipo === 'SIMPLES' || !estrategia ? 'selected' : ''}>Jogos avulsos (sem técnica)</option>
+        <option value="DESDOBRAMENTO" ${estrategia?.tipo === 'DESDOBRAMENTO' ? 'selected' : ''}>Desdobramento</option>
+        <option value="FECHAMENTO" ${estrategia?.tipo === 'FECHAMENTO' ? 'selected' : ''}>Fechamento</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Dezenas base (opcional, separadas por espaço/vírgula)</label>
+      <input class="form-control" id="jg-dezenas-base" placeholder="Ex: 1 4 7 12 15 20" value="${(estrategia?.dezenas_base || []).join(' ')}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Descrição</label>
+      <input class="form-control" id="jg-estrategia-desc" placeholder="Ex: Fechamento 20 dezenas em 6" value="${estrategia?.descricao ? escapeHtmlAdmin(estrategia.descricao) : ''}">
+    </div>
+    <button class="btn btn-sm" style="background:var(--accent2);color:#74b9ff;margin-bottom:16px" onclick="salvarEstrategia()">Salvar estratégia</button>
+
+    <div class="divider"></div>
+    <div class="section-title" style="font-size:.8rem;font-weight:700;color:var(--muted);margin:12px 0 8px">JOGOS (${r.dezenasMin != null ? `${r.dezenasMin}-${r.dezenasMax} dezenas, ${r.faixaMin}-${r.faixaMax}` : 'sem validação automática'})</div>
+    <div class="form-group">
+      <label class="form-label">Cole um jogo por linha</label>
+      <textarea class="form-control" id="jg-jogos-textarea" rows="6" placeholder="Ex:&#10;01 05 12 23 34 44&#10;02 06 13 24 35 45" oninput="renderJogosPreview()">${jogosExistentes.map(j => j.dezenas.map(d => String(d).padStart(2,'0')).join(' ')).join('\n')}</textarea>
+    </div>
+    <div id="jg-jogos-preview" style="margin-bottom:10px"></div>
+    <button class="btn btn-sm" style="background:var(--green);color:#fff;margin-bottom:16px" onclick="salvarJogos()">Salvar jogos</button>
+
+    <div class="divider"></div>
+    <div class="section-title" style="font-size:.8rem;font-weight:700;color:var(--muted);margin:12px 0 8px">RESULTADO DO SORTEIO</div>
+    <div class="form-group">
+      <label class="form-label">Dezenas sorteadas</label>
+      <input class="form-control" id="jg-resultado-dezenas" placeholder="Ex: 03 09 15 22 41 44" value="${resultado ? resultado.dezenas_sorteadas.map(d => String(d).padStart(2,'0')).join(' ') : ''}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Data da apuração</label>
+      <input class="form-control" id="jg-resultado-data" type="date" value="${resultado?.data_apuracao ? resultado.data_apuracao.slice(0,10) : ''}">
+    </div>
+    <div class="form-label" style="margin-bottom:6px">Premiação por faixa</div>
+    <div id="jg-faixas-container"></div>
+    <button class="btn btn-sm" style="background:var(--border);color:var(--muted);margin-bottom:10px" onclick="adicionarFaixa()">+ faixa</button>
+    <button class="btn btn-sm" style="background:var(--yellow);color:#000;margin-bottom:16px" onclick="salvarResultado()">Salvar resultado</button>
+
+    ${linkPublico ? `
+    <div class="divider"></div>
+    <div class="form-group">
+      <label class="form-label">Link público</label>
+      <input class="form-control" readonly value="${linkPublico}" onclick="this.select()">
+    </div>
+    <a href="https://wa.me/?text=${encodeURIComponent('Confira os jogos do bolão ' + tituloBolao(b) + ' (' + b.codigo + '): ' + linkPublico)}" target="_blank" rel="noopener">
+      <button class="btn btn-sm btn-block" style="background:#25D366;color:#063;margin-bottom:10px">📲 Compartilhar link no WhatsApp</button>
+    </a>` : `<div style="font-size:.75rem;color:var(--muted);margin-bottom:10px">Este bolão ainda não tem código — link público fica disponível após ter um.</div>`}
+
+    <button class="btn btn-block" style="background:var(--border);color:var(--muted)" onclick="closeModal('modal-jogos')">Fechar</button>
+  `;
+  renderJogosPreview();
+  renderFaixas();
+}
+
+function escapeHtmlAdmin(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+function renderJogosPreview() {
+  const textarea = document.getElementById('jg-jogos-textarea');
+  const preview = document.getElementById('jg-jogos-preview');
+  if (!textarea || !preview || !jgBolao) return;
+  const linhas = textarea.value.split('\n');
+  let html = '';
+  linhas.forEach((linha, i) => {
+    const dezenas = parseLinhaJogoAdmin(linha);
+    if (dezenas == null) return; // linha em branco, ignora
+    const { valido, erro } = validarJogoAdmin(jgBolao.loteria, dezenas);
+    if (valido) {
+      html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">${dezenas.map(d => bolaAdminHtml(d, jgBolao.loteria)).join('')}</div>`;
+    } else {
+      html += `<div style="font-size:.75rem;color:var(--red);margin-bottom:6px">Linha ${i+1}: ${erro}</div>`;
+    }
+  });
+  preview.innerHTML = html || '<div style="font-size:.75rem;color:var(--muted)">Cole ao menos um jogo acima.</div>';
+}
+
+async function salvarEstrategia() {
+  const tipo = document.getElementById('jg-estrategia-tipo').value;
+  const dezenasBaseRaw = document.getElementById('jg-dezenas-base').value.trim();
+  const dezenas_base = dezenasBaseRaw ? dezenasBaseRaw.split(/[\s,;]+/).filter(Boolean).map(Number) : null;
+  const descricao = document.getElementById('jg-estrategia-desc').value.trim() || null;
+  const { error } = await api.put(`/boloes/${jgBolao.id}/estrategia`, { tipo, dezenas_base, descricao });
+  if (error) { toast('Erro: ' + error.message, true); return; }
+  toast('Estratégia salva!');
+}
+
+async function salvarJogos() {
+  const textarea = document.getElementById('jg-jogos-textarea');
+  const linhas = textarea.value.split('\n');
+  const jogosParaSalvar = [];
+  for (let i = 0; i < linhas.length; i++) {
+    const dezenas = parseLinhaJogoAdmin(linhas[i]);
+    if (dezenas == null) continue;
+    const { valido, erro } = validarJogoAdmin(jgBolao.loteria, dezenas);
+    if (!valido) { toast(`Linha ${i+1}: ${erro}`, true); return; }
+    jogosParaSalvar.push(dezenas);
+  }
+  if (!jogosParaSalvar.length) { toast('Cole ao menos um jogo válido.', true); return; }
+  const { error } = await api.put(`/boloes/${jgBolao.id}/jogos`, { jogos: jogosParaSalvar });
+  if (error) { toast('Erro: ' + error.message, true); return; }
+  toast(`${jogosParaSalvar.length} jogo(s) salvo(s)!`);
+}
+
+function renderFaixas() {
+  const container = document.getElementById('jg-faixas-container');
+  if (!container) return;
+  container.innerHTML = jgFaixas.map((f, i) => `
+    <div style="display:grid;grid-template-columns:1.3fr .7fr .8fr 1fr auto;gap:4px;margin-bottom:6px;align-items:center">
+      <input class="form-control" style="padding:6px 8px;font-size:.75rem" placeholder="Faixa (ex: Sena)" value="${f.faixa ? escapeHtmlAdmin(f.faixa) : ''}" oninput="jgFaixas[${i}].faixa=this.value">
+      <input class="form-control" style="padding:6px 8px;font-size:.75rem" type="number" placeholder="Acertos" value="${f.acertos_necessarios ?? ''}" oninput="jgFaixas[${i}].acertos_necessarios=parseInt(this.value)||null">
+      <input class="form-control" style="padding:6px 8px;font-size:.75rem" type="number" placeholder="Ganhadores" value="${f.ganhadores ?? ''}" oninput="jgFaixas[${i}].ganhadores=parseInt(this.value)||null">
+      <input class="form-control" style="padding:6px 8px;font-size:.75rem" type="number" step="0.01" placeholder="Rateio R$" value="${f.valor_rateio ?? ''}" oninput="jgFaixas[${i}].valor_rateio=parseFloat(this.value)||null">
+      <button class="btn btn-sm" style="background:var(--red);color:#fff;padding:6px 10px" onclick="removerFaixa(${i})">×</button>
+    </div>
+  `).join('');
+}
+function adicionarFaixa() {
+  jgFaixas.push({ faixa: '', acertos_necessarios: null, ganhadores: null, valor_rateio: null });
+  renderFaixas();
+}
+function removerFaixa(i) {
+  jgFaixas.splice(i, 1);
+  renderFaixas();
+}
+
+async function salvarResultado() {
+  const dezenasRaw = document.getElementById('jg-resultado-dezenas').value.trim();
+  if (!dezenasRaw) { toast('Informe as dezenas sorteadas.', true); return; }
+  const dezenas_sorteadas = dezenasRaw.split(/[\s,;]+/).filter(Boolean).map(Number);
+  const data_apuracao = document.getElementById('jg-resultado-data').value || null;
+  const premiacoes = jgFaixas.filter(f => f.faixa);
+  const { error } = await api.put(`/boloes/${jgBolao.id}/resultado`, { dezenas_sorteadas, data_apuracao, premiacoes, fonte: 'manual' });
+  if (error) { toast('Erro: ' + error.message, true); return; }
+  toast('Resultado salvo!');
 }
 
 async function updateBolaoStatus(id, status) {

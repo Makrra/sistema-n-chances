@@ -113,3 +113,58 @@ export function serializeSaque(row) {
     processado_em: row.processado_em,
   };
 }
+
+// ============================================================
+// Jogos / Estratégia / Resultado do sorteio
+// (ver docs/funcionalidade-jogos-resultado-sorteio.md)
+// ============================================================
+
+export function serializeEstrategia(row) {
+  if (!row) return null;
+  return {
+    bolao_id: row.bolao_id,
+    tipo: row.tipo,
+    dezenas_base: row.dezenas_base ? JSON.parse(row.dezenas_base) : null,
+    descricao: row.descricao,
+    criado_em: row.criado_em,
+    atualizado_em: row.atualizado_em,
+  };
+}
+
+export function serializeJogo(row, dezenasSorteadas = null) {
+  const dezenas = JSON.parse(row.dezenas);
+  const out = { id: row.id, bolao_id: row.bolao_id, ordem: row.ordem, dezenas };
+  if (dezenasSorteadas) {
+    const sorteadasSet = new Set(dezenasSorteadas);
+    out.acertos = dezenas.filter(d => sorteadasSet.has(d)).length;
+  }
+  return out;
+}
+
+export function serializeResultado(row) {
+  if (!row) return null;
+  return {
+    bolao_id: row.bolao_id,
+    dezenas_sorteadas: JSON.parse(row.dezenas_sorteadas),
+    data_apuracao: row.data_apuracao,
+    premiacoes: row.premiacoes ? JSON.parse(row.premiacoes) : [],
+    fonte: row.fonte,
+    criado_em: row.criado_em,
+    atualizado_em: row.atualizado_em,
+  };
+}
+
+// Serializer público do bolão: só os campos que a página pública (/c/) pode
+// mostrar — nunca telefone, nome ou valores de participação (ver seção 9.2/10
+// do documento). Usado tanto na home pública (lista) quanto no detalhe.
+export function serializePublicoResumo(row) {
+  return {
+    codigo: row.codigo,
+    loteria: row.loteria,
+    concurso: row.concurso,
+    data_sorteio: row.data_sorteio,
+    status: row.status,
+    valor_cota_inteira: fromCentavos(row.valor_cota_inteira_centavos),
+    valor_cota_meia: fromCentavos(row.valor_cota_meia_centavos),
+  };
+}
