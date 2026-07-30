@@ -126,6 +126,8 @@ export function serializeEstrategia(row) {
     tipo: row.tipo,
     dezenas_base: row.dezenas_base ? JSON.parse(row.dezenas_base) : null,
     descricao: row.descricao,
+    comprovante_numero: row.comprovante_numero,
+    comprovante_horario: row.comprovante_horario,
     criado_em: row.criado_em,
     atualizado_em: row.atualizado_em,
   };

@@ -33,20 +33,23 @@ export async function putEstrategia(env, request, bolaoId) {
     ? JSON.stringify(body.dezenas_base.map(Number))
     : null;
   const descricao = body.descricao || null;
+  const comprovanteNumero = body.comprovante_numero || null;
+  const comprovanteHorario = body.comprovante_horario || null;
   const agora = nowIso();
 
   const existente = await env.DB.prepare(`SELECT bolao_id FROM bolao_estrategias WHERE bolao_id=?`).bind(bolaoId).first();
   try {
     if (existente) {
       await env.DB.prepare(`
-        UPDATE bolao_estrategias SET tipo=?, dezenas_base=?, descricao=?, atualizado_em=?
+        UPDATE bolao_estrategias
+        SET tipo=?, dezenas_base=?, descricao=?, comprovante_numero=?, comprovante_horario=?, atualizado_em=?
         WHERE bolao_id=?
-      `).bind(tipo, dezenasBase, descricao, agora, bolaoId).run();
+      `).bind(tipo, dezenasBase, descricao, comprovanteNumero, comprovanteHorario, agora, bolaoId).run();
     } else {
       await env.DB.prepare(`
-        INSERT INTO bolao_estrategias (bolao_id, tipo, dezenas_base, descricao, criado_em)
-        VALUES (?,?,?,?,?)
-      `).bind(bolaoId, tipo, dezenasBase, descricao, agora).run();
+        INSERT INTO bolao_estrategias (bolao_id, tipo, dezenas_base, descricao, comprovante_numero, comprovante_horario, criado_em)
+        VALUES (?,?,?,?,?,?,?)
+      `).bind(bolaoId, tipo, dezenasBase, descricao, comprovanteNumero, comprovanteHorario, agora).run();
     }
   } catch (err) { throw classifyD1Error(err); }
 

@@ -1297,11 +1297,6 @@ const LOTERIAS_CORES = {
 };
 function regraLoteriaAdmin(loteria) { return LOTERIAS_CORES[loteria] || LOTERIAS_CORES['outro']; }
 
-function bolaAdminHtml(numero, loteria) {
-  const r = regraLoteriaAdmin(loteria);
-  return `<div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:800;flex-shrink:0;background:${r.cor};color:#fff">${String(numero).padStart(2,'0')}</div>`;
-}
-
 // Espelha lib/loterias.js:parseLinhaJogo + validarJogo — validação client-side
 // só para feedback imediato; o servidor sempre revalida (não confia no client).
 function parseLinhaJogoAdmin(linha) {
@@ -1384,6 +1379,16 @@ async function abrirJogos(bolaoId) {
       <label class="form-label">Descrição</label>
       <input class="form-control" id="jg-estrategia-desc" placeholder="Ex: Fechamento 20 dezenas em 6" value="${estrategia?.descricao ? escapeHtmlAdmin(estrategia.descricao) : ''}">
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label class="form-label">Nº do comprovante</label>
+        <input class="form-control" id="jg-comprovante-numero" placeholder="Ex: 1234567890" value="${estrategia?.comprovante_numero ? escapeHtmlAdmin(estrategia.comprovante_numero) : ''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Horário da aposta</label>
+        <input class="form-control" id="jg-comprovante-horario" type="time" value="${estrategia?.comprovante_horario || ''}">
+      </div>
+    </div>
     <button class="btn btn-sm" style="background:var(--accent2);color:var(--info);margin-bottom:16px" onclick="salvarEstrategia()">Salvar estratégia</button>
 
     <div class="divider"></div>
@@ -1433,6 +1438,11 @@ function escapeHtmlAdmin(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
+// Lê as dezenas sorteadas direto do campo (não do objeto `resultado`
+// carregado na abertura do modal), pra já refletir o que o organizador está
+// digitando antes de salvar — mesmo espírito do preview de jogos.
+// Só valida e avisa de erro por linha — sem bolinhas, sem cálculo de
+// acertos. Isso (resultado, acertos, resumo) fica só na página pública.
 function renderJogosPreview() {
   const textarea = document.getElementById('jg-jogos-textarea');
   const preview = document.getElementById('jg-jogos-preview');
@@ -1443,14 +1453,11 @@ function renderJogosPreview() {
     const dezenas = parseLinhaJogoAdmin(linha);
     if (dezenas == null) return; // linha em branco, ignora
     const { valido, erro } = validarJogoAdmin(jgBolao.loteria, dezenas);
-    if (valido) {
-      const ordenadas = dezenas.slice().sort((a, b) => a - b);
-      html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">${ordenadas.map(d => bolaAdminHtml(d, jgBolao.loteria)).join('')}</div>`;
-    } else {
+    if (!valido) {
       html += `<div style="font-size:.75rem;color:var(--red);margin-bottom:6px">Linha ${i+1}: ${erro}</div>`;
     }
   });
-  preview.innerHTML = html || '<div style="font-size:.75rem;color:var(--muted)">Cole ao menos um jogo acima.</div>';
+  preview.innerHTML = html;
 }
 
 async function salvarEstrategia() {
@@ -1458,7 +1465,9 @@ async function salvarEstrategia() {
   const dezenasBaseRaw = document.getElementById('jg-dezenas-base').value.trim();
   const dezenas_base = dezenasBaseRaw ? dezenasBaseRaw.split(/[\s,;]+/).filter(Boolean).map(Number) : null;
   const descricao = document.getElementById('jg-estrategia-desc').value.trim() || null;
-  const { error } = await api.put(`/boloes/${jgBolao.id}/estrategia`, { tipo, dezenas_base, descricao });
+  const comprovante_numero = document.getElementById('jg-comprovante-numero').value.trim() || null;
+  const comprovante_horario = document.getElementById('jg-comprovante-horario').value || null;
+  const { error } = await api.put(`/boloes/${jgBolao.id}/estrategia`, { tipo, dezenas_base, descricao, comprovante_numero, comprovante_horario });
   if (error) { toast('Erro: ' + error.message, true); return; }
   toast('Estratégia salva!');
 }

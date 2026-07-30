@@ -81,10 +81,20 @@ body {
 .bola.acerto { box-shadow: 0 0 0 3px var(--accent); }
 .bola.grande { width: 40px; height: 40px; font-size: 0.85rem; }
 .acertos-tag {
-  font-size: 0.7rem; font-weight: 700; color: var(--accent);
-  background: rgba(164,199,62,.12); padding: 2px 8px; border-radius: 12px;
-  margin-left: auto;
+  font-size: 0.7rem; font-weight: 700; color: var(--muted);
+  background: var(--surface); padding: 2px 8px; border-radius: 12px;
+  margin-left: auto; border: 1px solid var(--border);
 }
+.acertos-tag.premiado {
+  color: var(--accent); background: rgba(164,199,62,.16);
+  border: 1px solid var(--accent);
+}
+.resumo-linha {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 0.82rem;
+}
+.resumo-linha:last-child { border-bottom: none; }
+.resumo-linha.premiado { color: var(--accent); font-weight: 700; }
 .tabela { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin-top: 6px; }
 .tabela th, .tabela td { padding: 7px 6px; text-align: left; border-bottom: 1px solid var(--border); }
 .tabela th { color: var(--muted); font-weight: 600; font-size: 0.7rem; text-transform: uppercase; }
@@ -93,6 +103,13 @@ body {
   text-align: center; line-height: 1.5;
 }
 .back { display: inline-block; margin-bottom: 12px; color: var(--muted); text-decoration: none; font-size: 0.85rem; }
+.cta-comprar {
+  display: block; width: 100%; border: none; border-radius: 12px;
+  padding: 16px 18px; margin-bottom: 16px; cursor: pointer;
+  background: #25D366; color: #06381f; text-decoration: none;
+  font-size: 1rem; font-weight: 800; text-align: center;
+  box-shadow: 0 4px 14px rgba(37,211,102,.35);
+}
 </style>
 </head>
 <body>
@@ -124,14 +141,18 @@ body {
 // das Loterias CAIXA) — espelha worker/src/lib/loterias.js. Qualquer
 // mudança de cor precisa ser replicada nos dois lugares (ver comentário lá).
 // ============================================================
+// Número da bolinha é sempre branco. Nas loterias de fundo claro (contraste
+// ruim com branco puro) usa uma sombra escura suave em vez de contorno
+// rígido ou texto preto — opção escolhida entre as 4 alternativas
+// apresentadas em preview.
 const LOTERIAS = {
-  'mega-sena':  { nome: 'Mega-Sena',  emoji: '🟢', cor: '#00AB67', corTexto: '#000000' },
-  'lotofacil':  { nome: 'Lotofácil',  emoji: '🟣', cor: '#803594', corTexto: '#FFFFFF' },
-  'quina':      { nome: 'Quina',      emoji: '🔵', cor: '#005DA4', corTexto: '#FFFFFF' },
-  'lotomania':  { nome: 'Lotomania',  emoji: '🟠', cor: '#F99D1C', corTexto: '#000000' },
-  'dupla-sena': { nome: 'Dupla Sena', emoji: '🔴', cor: '#A62A52', corTexto: '#FFFFFF' },
-  'timemania':  { nome: 'Timemania',  emoji: '🟡', cor: '#FFDD00', corTexto: '#000000' },
-  'outro':      { nome: 'Sorteio',    emoji: '⚪', cor: '#6B7280', corTexto: '#FFFFFF' },
+  'mega-sena':  { nome: 'Mega-Sena',  emoji: '🟢', cor: '#00AB67', sombra: true },
+  'lotofacil':  { nome: 'Lotofácil',  emoji: '🟣', cor: '#803594' },
+  'quina':      { nome: 'Quina',      emoji: '🔵', cor: '#005DA4' },
+  'lotomania':  { nome: 'Lotomania',  emoji: '🟠', cor: '#F99D1C', sombra: true },
+  'dupla-sena': { nome: 'Dupla Sena', emoji: '🔴', cor: '#A62A52' },
+  'timemania':  { nome: 'Timemania',  emoji: '🟡', cor: '#FFDD00', sombra: true },
+  'outro':      { nome: 'Sorteio',    emoji: '⚪', cor: '#6B7280' },
 };
 const STATUS_LABEL = { ABERTO: 'Aberto', FECHADO: 'Fechado', SORTEADO: 'Sorteado' };
 const STATUS_BADGE_CLASS = { ABERTO: 'badge-aberto', FECHADO: 'badge-fechado', SORTEADO: 'badge-sorteado' };
@@ -142,6 +163,27 @@ const TIPO_SORTEIO_LABEL = {
 };
 
 function loteriaInfo(loteria) { return LOTERIAS[loteria] || LOTERIAS['outro']; }
+
+// Nº mínimo de acertos que já paga algum prêmio em dinheiro, por loteria —
+// regras gerais conhecidas da Caixa (não vêm de API oficial, então podem
+// ficar desatualizadas se a Caixa mudar as faixas — confira contra o
+// resultado oficial do concurso antes de confiar cegamente). Lotomania é
+// especial: também paga com ZERO acertos, além de 15+.
+const FAIXA_PREMIADA = {
+  'mega-sena':  { minimo: 4 },  // quadra, quina, sena
+  'lotofacil':  { minimo: 11 }, // 11 a 15 acertos
+  'quina':      { minimo: 3 },  // terno, quadra, quina
+  'lotomania':  { minimo: 15, tambemZero: true },
+  'dupla-sena': { minimo: 4 },  // por sorteio (1º ou 2º), quadra/quina/sena
+  'timemania':  { minimo: 3 },  // não considera o "time do coração" (não modelado aqui)
+  'outro':      null,
+};
+function ehFaixaPremiada(loteria, acertos) {
+  const regra = FAIXA_PREMIADA[loteria];
+  if (!regra) return false;
+  if (regra.tambemZero && acertos === 0) return true;
+  return acertos >= regra.minimo;
+}
 
 // Título do card: bolinha da loteria + nome + tipo (ou nome próprio, em
 // sorteios especiais, ex. "LOTOFÁCIL DA INDEPENDÊNCIA").
@@ -166,7 +208,8 @@ function escapeHtml(s) {
 function bolaHtml(numero, loteria, acertou, grande) {
   const info = loteriaInfo(loteria);
   const classes = ['bola', acertou ? 'acerto' : '', grande ? 'grande' : ''].filter(Boolean).join(' ');
-  return `<div class="${classes}" style="background:${info.cor};color:${info.corTexto}">${String(numero).padStart(2, '0')}</div>`;
+  const sombra = info.sombra ? ';text-shadow:0 1px 3px rgba(0,0,0,.85),0 0 2px rgba(0,0,0,.6)' : '';
+  return `<div class="${classes}" style="background:${info.cor};color:#fff${sombra}">${String(numero).padStart(2, '0')}</div>`;
 }
 
 async function apiGet(path) {
@@ -222,6 +265,13 @@ async function carregarDetalhe(codigo) {
       <span class="badge ${STATUS_BADGE_CLASS[bolao.status] || ''}">${STATUS_LABEL[bolao.status] || bolao.status}</span>
     </div>`;
 
+    if (bolao.status === 'ABERTO') {
+      const msgCompra = encodeURIComponent(
+        `Olá! Quero comprar uma cota do bolão ${tituloPublico(bolao)} — ${bolao.codigo}, concurso #${bolao.concurso ?? ''}.\n${location.href}`
+      );
+      html += `<a class="cta-comprar" href="https://wa.me/5584999824799?text=${msgCompra}" target="_blank" rel="noopener">🛒 Quero comprar uma cota!</a>`;
+    }
+
     if (estrategia) {
       html += `<div class="section-title">Estratégia</div><div class="card">
         <div style="font-weight:700;margin-bottom:6px">${TIPO_ESTRATEGIA_LABEL[estrategia.tipo] || estrategia.tipo}</div>
@@ -230,6 +280,13 @@ async function carregarDetalhe(codigo) {
           <div class="bolas">${estrategia.dezenas_base.map(d => bolaHtml(d, bolao.loteria, false)).join('')}</div>
         ` : ''}
         ${estrategia.descricao ? `<div style="font-size:.82rem;margin-top:10px;color:var(--muted)">${escapeHtml(estrategia.descricao)}</div>` : ''}
+        ${(estrategia.comprovante_numero || estrategia.comprovante_horario) ? `
+          <div style="font-size:.72rem;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+            ${estrategia.comprovante_numero ? `Comprovante nº <b style="color:var(--text)">${escapeHtml(estrategia.comprovante_numero)}</b>` : ''}
+            ${estrategia.comprovante_numero && estrategia.comprovante_horario ? ' · ' : ''}
+            ${estrategia.comprovante_horario ? `Realizado às <b style="color:var(--text)">${escapeHtml(estrategia.comprovante_horario)}</b>` : ''}
+          </div>
+        ` : ''}
       </div>`;
     }
 
@@ -237,13 +294,33 @@ async function carregarDetalhe(codigo) {
     if (!jogos.length) {
       html += '<div class="empty">Jogos ainda não divulgados para este bolão.</div>';
     } else {
+      const contagemAcertos = {}; // nº de acertos -> quantidade de jogos
       html += '<div class="card">' + jogos.map((j, i) => {
         const sorteadas = resultado ? new Set(resultado.dezenas_sorteadas) : null;
         const dezenasOrdenadas = j.dezenas.slice().sort((a, b) => a - b);
         const bolasHtml = dezenasOrdenadas.map(d => bolaHtml(d, bolao.loteria, sorteadas ? sorteadas.has(d) : false)).join('');
-        const tagAcertos = resultado ? `<span class="acertos-tag">${j.acertos} acerto${j.acertos === 1 ? '' : 's'}</span>` : '';
+        let tagAcertos = '';
+        if (resultado) {
+          contagemAcertos[j.acertos] = (contagemAcertos[j.acertos] || 0) + 1;
+          const premiado = ehFaixaPremiada(bolao.loteria, j.acertos);
+          tagAcertos = `<span class="acertos-tag${premiado ? ' premiado' : ''}">${premiado ? '💰 ' : ''}${j.acertos} acerto${j.acertos === 1 ? '' : 's'}</span>`;
+        }
         return `<div class="jogo-row"><div class="jogo-idx">#${i + 1}</div><div class="bolas">${bolasHtml}</div>${tagAcertos}</div>`;
       }).join('') + '</div>';
+
+      if (resultado) {
+        const contagens = Object.keys(contagemAcertos).map(Number).sort((a, b) => b - a);
+        html += '<div class="section-title">Resumo de acertos</div><div class="card">';
+        html += contagens.map(acertos => {
+          const qtd = contagemAcertos[acertos];
+          const premiado = ehFaixaPremiada(bolao.loteria, acertos);
+          return `<div class="resumo-linha${premiado ? ' premiado' : ''}">
+            <span>${premiado ? '💰 ' : ''}${acertos} acerto${acertos === 1 ? '' : 's'}</span>
+            <span>${qtd} jogo${qtd === 1 ? '' : 's'}</span>
+          </div>`;
+        }).join('');
+        html += '</div>';
+      }
     }
 
     if (resultado) {
