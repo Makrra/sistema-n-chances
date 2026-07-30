@@ -35,6 +35,7 @@ export async function putEstrategia(env, request, bolaoId) {
   const descricao = body.descricao || null;
   const comprovanteNumero = body.comprovante_numero || null;
   const comprovanteHorario = body.comprovante_horario || null;
+  const comprovanteData = body.comprovante_data || null;
   const agora = nowIso();
 
   const existente = await env.DB.prepare(`SELECT bolao_id FROM bolao_estrategias WHERE bolao_id=?`).bind(bolaoId).first();
@@ -42,14 +43,14 @@ export async function putEstrategia(env, request, bolaoId) {
     if (existente) {
       await env.DB.prepare(`
         UPDATE bolao_estrategias
-        SET tipo=?, dezenas_base=?, descricao=?, comprovante_numero=?, comprovante_horario=?, atualizado_em=?
+        SET tipo=?, dezenas_base=?, descricao=?, comprovante_numero=?, comprovante_horario=?, comprovante_data=?, atualizado_em=?
         WHERE bolao_id=?
-      `).bind(tipo, dezenasBase, descricao, comprovanteNumero, comprovanteHorario, agora, bolaoId).run();
+      `).bind(tipo, dezenasBase, descricao, comprovanteNumero, comprovanteHorario, comprovanteData, agora, bolaoId).run();
     } else {
       await env.DB.prepare(`
-        INSERT INTO bolao_estrategias (bolao_id, tipo, dezenas_base, descricao, comprovante_numero, comprovante_horario, criado_em)
-        VALUES (?,?,?,?,?,?,?)
-      `).bind(bolaoId, tipo, dezenasBase, descricao, comprovanteNumero, comprovanteHorario, agora).run();
+        INSERT INTO bolao_estrategias (bolao_id, tipo, dezenas_base, descricao, comprovante_numero, comprovante_horario, comprovante_data, criado_em)
+        VALUES (?,?,?,?,?,?,?,?)
+      `).bind(bolaoId, tipo, dezenasBase, descricao, comprovanteNumero, comprovanteHorario, comprovanteData, agora).run();
     }
   } catch (err) { throw classifyD1Error(err); }
 

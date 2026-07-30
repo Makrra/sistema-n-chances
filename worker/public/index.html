@@ -1381,10 +1381,14 @@ async function abrirJogos(bolaoId) {
       <label class="form-label">Descrição</label>
       <input class="form-control" id="jg-estrategia-desc" placeholder="Ex: Fechamento 20 dezenas em 6" value="${estrategia?.descricao ? escapeHtmlAdmin(estrategia.descricao) : ''}">
     </div>
+    <div class="form-group">
+      <label class="form-label">Nº do comprovante</label>
+      <input class="form-control" id="jg-comprovante-numero" placeholder="Ex: 1234567890" value="${estrategia?.comprovante_numero ? escapeHtmlAdmin(estrategia.comprovante_numero) : ''}">
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group">
-        <label class="form-label">Nº do comprovante</label>
-        <input class="form-control" id="jg-comprovante-numero" placeholder="Ex: 1234567890" value="${estrategia?.comprovante_numero ? escapeHtmlAdmin(estrategia.comprovante_numero) : ''}">
+        <label class="form-label">Data da aposta</label>
+        <input class="form-control" id="jg-comprovante-data" type="date" value="${estrategia?.comprovante_data || ''}">
       </div>
       <div class="form-group">
         <label class="form-label">Horário da aposta</label>
@@ -1469,7 +1473,8 @@ async function salvarEstrategia() {
   const descricao = document.getElementById('jg-estrategia-desc').value.trim() || null;
   const comprovante_numero = document.getElementById('jg-comprovante-numero').value.trim() || null;
   const comprovante_horario = document.getElementById('jg-comprovante-horario').value || null;
-  const { error } = await api.put(`/boloes/${jgBolao.id}/estrategia`, { tipo, dezenas_base, descricao, comprovante_numero, comprovante_horario });
+  const comprovante_data = document.getElementById('jg-comprovante-data').value || null;
+  const { error } = await api.put(`/boloes/${jgBolao.id}/estrategia`, { tipo, dezenas_base, descricao, comprovante_numero, comprovante_horario, comprovante_data });
   if (error) { toast('Erro: ' + error.message, true); return; }
   toast('Estratégia salva!');
 }

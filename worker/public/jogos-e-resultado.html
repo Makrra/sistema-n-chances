@@ -438,13 +438,15 @@ async function carregarDetalhe(codigo) {
           <div class="bolas">${estrategia.dezenas_base.map(d => bolaHtml(d, bolao.loteria, false)).join('')}</div>
         ` : ''}
         ${estrategia.descricao ? `<div style="font-size:.82rem;margin-top:10px;color:var(--muted)">${escapeHtml(estrategia.descricao)}</div>` : ''}
-        ${(estrategia.comprovante_numero || estrategia.comprovante_horario) ? `
-          <div style="font-size:.72rem;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-            ${estrategia.comprovante_numero ? `Comprovante nº <b style="color:var(--text)">${escapeHtml(estrategia.comprovante_numero)}</b>` : ''}
-            ${estrategia.comprovante_numero && estrategia.comprovante_horario ? ' · ' : ''}
-            ${estrategia.comprovante_horario ? `Realizado às <b style="color:var(--text)">${escapeHtml(estrategia.comprovante_horario)}</b>` : ''}
-          </div>
-        ` : ''}
+        ${(() => {
+          const partes = [];
+          if (estrategia.comprovante_numero) partes.push(`Comprovante nº <b style="color:var(--text)">${escapeHtml(estrategia.comprovante_numero)}</b>`);
+          if (estrategia.comprovante_data) partes.push(`Realizado em <b style="color:var(--text)">${fmtData(estrategia.comprovante_data)}</b>`);
+          if (estrategia.comprovante_horario) partes.push(`às <b style="color:var(--text)">${escapeHtml(estrategia.comprovante_horario)}</b>`);
+          return partes.length
+            ? `<div style="font-size:.72rem;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">${partes.join(' · ')}</div>`
+            : '';
+        })()}
       </div>`;
     }
 

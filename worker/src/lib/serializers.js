@@ -128,6 +128,7 @@ export function serializeEstrategia(row) {
     descricao: row.descricao,
     comprovante_numero: row.comprovante_numero,
     comprovante_horario: row.comprovante_horario,
+    comprovante_data: row.comprovante_data,
     criado_em: row.criado_em,
     atualizado_em: row.atualizado_em,
   };
