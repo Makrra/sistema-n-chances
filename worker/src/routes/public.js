@@ -9,12 +9,15 @@ import { json } from '../lib/http.js';
 import { serializeEstrategia, serializeJogo, serializeResultado, serializePublicoResumo } from '../lib/serializers.js';
 
 // GET /api/public/boloes — home pública (UC11): lista os bolões relevantes,
-// mais recentes primeiro. Critério da seção 9.1: ABERTO, FECHADO ou SORTEADO,
-// sem paginação na v1.
+// do sorteio mais próximo pro mais antigo. Critério da seção 9.1: ABERTO,
+// FECHADO ou SORTEADO, sem paginação na v1. Um bolão some da lista 3 dias
+// depois da data do sorteio (o link direto /jogos_e_resultado/:codigo
+// continua funcionando normalmente — só a home é filtrada).
 export async function listPublico(env) {
   const { results } = await env.DB.prepare(`
     SELECT * FROM boloes
     WHERE status IN ('ABERTO','FECHADO','SORTEADO') AND codigo IS NOT NULL
+      AND date(data_sorteio, '+3 days') >= date('now')
     ORDER BY data_sorteio DESC
   `).all();
   return json({ boloes: results.map(serializePublicoResumo) });

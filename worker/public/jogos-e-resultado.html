@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <meta name="theme-color" content="#0c1712">
+<link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAADyklEQVR4nLRWW4wTZRT+/85Mu73Q3XZdu9mFsgsKxqBsNl7iDd80MSr6og8bX3hQN3EfNDFRCWrik0ZCTPTBxGhijImIGC4JgQQSEkIIsIRwCxDusNBu293Sdqb975zZgVJmujstsCfN5L/N+c53vnP+jh5LJdF8WgDNs+novqwzqaf6Qq7FzDVSKvIHBUg8Yrz7QWr4pU5dx64tqyJ+/f7KmeNm4yJuS4NITPvyx6U9vcHZDjAqx9471bjSHoOR0b45vIMZQbeobQCEI9rwC53O+Nih0sbfMvksdabPvdq15tOFTd9qo4qSPQa+c3zb35N172AH9xalRA8KoDWoyphy7QphI9TcRXS/Zeo1qXCFAQBuCSAW11aPpFY+H4936cUpfuG0+d8fmXyG5jJ0NpErFHGMLQ+DJil6tC/49U+Pv/J6ErzDtCupD7/Y+e0vy5Y/Hd2w7uJ0gTUHYLhMAQb7A4yM9scTbmZGEH/4+aJUf2j9VxcrJYGaMQCMCvVjAKWy/KmoMy5M0p+/u7zlr6wzxQH88RdpILR+7QVSlc0ZMD8G/QMd9fGGdZdOjJd3bMr9/2fGWQl1BMa+GeiIaN5EQezmDIYPQCSiOQOlUL3Sd27O796av71uBNasHVyyIuZ60WyRAbpzQKl7Kv3f3zNABbxUCCI48OYnixevWNB4wFG4QpUfQB0Iu2MBMbb/M+nkmmBt1ehg+plEfRfWTaqIB2CORnMfjcb1fdtzJUsNvd1bhZ4S+Mn304Sj7NFp2K0RCT1AqWyZAXIziCaMtz5bcmxPYd/GGw4PyNjCd9LxZXHYJVQCBvEFwHfjdzOQCkX6o6vGlp7fP3Vk04SDAZdPanU6PBCrEUEAgPgBONJyCaK5GcBtViZI7wmv/Oix64enzm6+OhO1oFx1vbGICmRjeBh4NMB2UJBfyyOXULaSVaZUMmwsMArjBRnSYs/2ECq4gOwLzhFlwgcAYre9cFT1MJA2LUQ4pkw6RKf3T0JOgkPdlEu4wBmTzOTG3ABM2j0JDEwPAxzSqlSBd8aVYLdTYY3nyU2KnkjQUEAUqX4458dAOHlA1r09GeoOdb+cgjphXBKTi8rdq0KcK6FzJbgANNTE3ACWJUFJYAC5fu2HIYspGBOgz+3YQUN4lk8WPSU2q7kBspeqpaoiCMN/EyhRm8k4eIf80plnLVuzDuRQy6YFY+HGOSeyPM0jg3FLAgCGzgS/UCeU2V1qXTbNXROKydYBmn94YQ139IbhCc2l7J+CEpImlyWK2rTmd5ESqjphoYdh8/51fQsAAP//nUkm7gAAAAZJREFUAwATtCGpFQzLfAAAAABJRU5ErkJggg==">
+<link rel="apple-touch-icon" href="data:image/png;base64,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">
 <title>N-Chances | Bolões</title>
 <style>
 /* Tipografia oficial da marca (ver [Descritivo] N Chances.pdf) — usada só no
@@ -86,7 +88,7 @@ body {
   margin-left: auto; border: 1px solid var(--border);
 }
 .acertos-tag.premiado {
-  color: var(--accent); background: rgba(164,199,62,.16);
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent);
   border: 1px solid var(--accent);
 }
 .resumo-linha {
@@ -109,6 +111,42 @@ body {
   background: #25D366; color: #06381f; text-decoration: none;
   font-size: 1rem; font-weight: 800; text-align: center;
   box-shadow: 0 4px 14px rgba(37,211,102,.35);
+}
+
+/* Modal central do seletor de cotas — um único modal compartilhado pelos
+   dois botões (início e fim da página), já que só um pode estar aberto por
+   vez e o conteúdo é idêntico independente de qual botão abriu. */
+.cta-overlay {
+  position: fixed; inset: 0; background: rgba(2,4,3,.65);
+  z-index: 100; opacity: 0; pointer-events: none; transition: opacity .18s ease;
+}
+.cta-overlay.aberto { opacity: 1; pointer-events: auto; }
+.cta-modal {
+  position: fixed; left: 20px; right: 20px; top: 50%; z-index: 101;
+  max-width: 400px; margin: 0 auto;
+  background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+  padding: 22px 20px 20px;
+  transform: translateY(-50%) scale(.92); opacity: 0; pointer-events: none;
+  transition: transform .18s ease, opacity .18s ease;
+}
+.cta-modal.aberto { transform: translateY(-50%) scale(1); opacity: 1; pointer-events: auto; }
+.cta-modal-fechar {
+  position: absolute; top: 10px; right: 10px; width: 28px; height: 28px; border-radius: 50%;
+  border: none; background: var(--surface); color: var(--muted); font-size: 0.95rem; cursor: pointer;
+}
+.cta-modal-titulo { font-weight: 800; font-size: 0.95rem; text-align: center; margin-bottom: 4px; }
+.cta-modal-sub { font-size: 0.72rem; color: var(--muted); text-align: center; margin-bottom: 16px; }
+.cta-stepper { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 16px; }
+.cta-stepper button {
+  width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font-size: 1.25rem; font-weight: 800;
+  cursor: pointer; line-height: 1;
+}
+.cta-stepper .cta-valor { font-size: 1.1rem; font-weight: 800; min-width: 92px; text-align: center; }
+.cta-enviar {
+  display: block; width: 100%; border: none; border-radius: 10px;
+  padding: 13px; cursor: pointer; text-decoration: none;
+  background: #25D366; color: #06381f; font-size: 0.88rem; font-weight: 800; text-align: center;
 }
 </style>
 </head>
@@ -145,15 +183,40 @@ body {
 // ruim com branco puro) usa uma sombra escura suave em vez de contorno
 // rígido ou texto preto — opção escolhida entre as 4 alternativas
 // apresentadas em preview.
+// `tema` é o fundo/superfície/cartão escurecidos a partir da cor oficial da
+// loteria (aprovado em preview) — aplicado na página de detalhe via
+// aplicarTemaLoteria(). "outro" mantém a paleta padrão da marca (:root).
 const LOTERIAS = {
-  'mega-sena':  { nome: 'Mega-Sena',  emoji: '🟢', cor: '#00AB67', sombra: true },
-  'lotofacil':  { nome: 'Lotofácil',  emoji: '🟣', cor: '#803594' },
-  'quina':      { nome: 'Quina',      emoji: '🔵', cor: '#005DA4' },
-  'lotomania':  { nome: 'Lotomania',  emoji: '🟠', cor: '#F99D1C', sombra: true },
-  'dupla-sena': { nome: 'Dupla Sena', emoji: '🔴', cor: '#A62A52' },
-  'timemania':  { nome: 'Timemania',  emoji: '🟡', cor: '#FFDD00', sombra: true },
-  'outro':      { nome: 'Sorteio',    emoji: '⚪', cor: '#6B7280' },
+  'mega-sena':  { nome: 'Mega-Sena',  emoji: '🟢', cor: '#00AB67', sombra: true,
+    tema: { bg: '#071410', surface: '#0d1f18', card: '#12291f', border: '#1c3a2c', muted: '#7fa693' } },
+  'lotofacil':  { nome: 'Lotofácil',  emoji: '🟣', cor: '#803594',
+    tema: { bg: '#130a17', surface: '#1d1122', card: '#27182d', border: '#3a2542', muted: '#a08aa8' } },
+  'quina':      { nome: 'Quina',      emoji: '🔵', cor: '#005DA4',
+    tema: { bg: '#050f19', surface: '#0a1928', card: '#0f2337', border: '#17324c', muted: '#7f9bb3' } },
+  'lotomania':  { nome: 'Lotomania',  emoji: '🟠', cor: '#F99D1C', sombra: true,
+    tema: { bg: '#180f06', surface: '#23180a', card: '#2e210e', border: '#453118', muted: '#b8a184' } },
+  'dupla-sena': { nome: 'Dupla Sena', emoji: '🔴', cor: '#A62A52',
+    tema: { bg: '#16070c', surface: '#200a12', card: '#2b0e18', border: '#401322', muted: '#ab8590' } },
+  'timemania':  { nome: 'Timemania',  emoji: '🟡', cor: '#FFDD00', sombra: true,
+    tema: { bg: '#14120a', surface: '#1e1a0f', card: '#28220e', border: '#3d331d', muted: '#b0a583' } },
+  'outro':      { nome: 'Sorteio',    emoji: '⚪', cor: '#6B7280', tema: null },
 };
+
+// Aplica o tema de fundo/superfície/cartão/destaque da loteria na página de
+// detalhe (a home fica sempre na paleta padrão, já que mistura várias
+// loterias ao mesmo tempo).
+function aplicarTemaLoteria(loteria) {
+  const info = loteriaInfo(loteria);
+  const raiz = document.documentElement.style;
+  const t = info.tema;
+  raiz.setProperty('--bg', t ? t.bg : '#0c1712');
+  raiz.setProperty('--surface', t ? t.surface : '#12201a');
+  raiz.setProperty('--card', t ? t.card : '#16251e');
+  raiz.setProperty('--border', t ? t.border : '#223229');
+  raiz.setProperty('--muted', t ? t.muted : '#7f9086');
+  raiz.setProperty('--accent', t ? info.cor : '#A4C73E');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', t ? t.surface : '#12201a');
+}
 const STATUS_LABEL = { ABERTO: 'Aberto', FECHADO: 'Fechado', SORTEADO: 'Sorteado' };
 const STATUS_BADGE_CLASS = { ABERTO: 'badge-aberto', FECHADO: 'badge-fechado', SORTEADO: 'badge-sorteado' };
 const TIPO_ESTRATEGIA_LABEL = { SIMPLES: 'Jogos avulsos', SURPRESINHA: 'Surpresinha', DESDOBRAMENTO: 'Desdobramento', FECHAMENTO: 'Fechamento' };
@@ -219,6 +282,76 @@ async function apiGet(path) {
 }
 
 // ============================================================
+// CTA DE COMPRA — botão abre um modal central com um seletor de cotas
+// (0,5 em 0,5) antes de montar a mensagem do WhatsApp. Início e fim da
+// página usam o MESMO botão/modal (só um pode estar aberto por vez, e o
+// conteúdo é idêntico não importa qual dos dois abriu).
+// ============================================================
+let bolaoAtual = null;
+let ctaQtd = 1;
+
+function renderCtaBotao() {
+  return `<button type="button" class="cta-comprar" onclick="abrirModalCota()">🛒 Quero comprar uma cota!</button>`;
+}
+
+// Modal fica fora do fluxo normal da página (fixed, sobre tudo) — um bloco
+// só, inserido uma vez no fim do HTML montado por carregarDetalhe().
+function renderCtaModal() {
+  return `
+  <div class="cta-overlay" id="cta-overlay" onclick="fecharModalCota()"></div>
+  <div class="cta-modal" id="cta-modal">
+    <button type="button" class="cta-modal-fechar" onclick="fecharModalCota()">✕</button>
+    <div class="cta-modal-titulo">Escolha a quantidade</div>
+    <div class="cta-modal-sub" id="cta-modal-sub"></div>
+    <div class="cta-stepper">
+      <button type="button" onclick="alterarCota(-0.5)">−</button>
+      <span class="cta-valor" id="cta-valor">1 cota</span>
+      <button type="button" onclick="alterarCota(0.5)">+</button>
+    </div>
+    <a class="cta-enviar" id="cta-enviar" target="_blank" rel="noopener">📲 Enviar mensagem</a>
+  </div>`;
+}
+
+function formatarCotas(qtd) {
+  const texto = qtd.toFixed(1).replace('.0', '').replace('.', ',');
+  return `${texto} cota${qtd === 1 ? '' : 's'}`;
+}
+
+function abrirModalCota() {
+  ctaQtd = 1;
+  document.getElementById('cta-valor').textContent = formatarCotas(ctaQtd);
+  document.getElementById('cta-modal-sub').textContent = `de cotas do bolão ${bolaoAtual.codigo}`;
+  document.getElementById('cta-overlay').classList.add('aberto');
+  document.getElementById('cta-modal').classList.add('aberto');
+  atualizarLinkCta();
+}
+
+function fecharModalCota() {
+  document.getElementById('cta-overlay').classList.remove('aberto');
+  document.getElementById('cta-modal').classList.remove('aberto');
+}
+
+function alterarCota(delta) {
+  const max = bolaoAtual?.quantidade_cotas || 20;
+  ctaQtd = Math.min(max, Math.max(0.5, ctaQtd + delta));
+  document.getElementById('cta-valor').textContent = formatarCotas(ctaQtd);
+  atualizarLinkCta();
+}
+
+function atualizarLinkCta() {
+  if (!bolaoAtual) return;
+  const info = loteriaInfo(bolaoAtual.loteria);
+  const msg = encodeURIComponent(
+    `Olá! Quero adquirir ${formatarCotas(ctaQtd)} do bolão abaixo:\n\n*${bolaoAtual.codigo}*\nLoteria: ${info.nome.toUpperCase()}\nPrêmio: ${bolaoAtual.premio_estimado || '—'}\nConcurso: ${bolaoAtual.concurso ?? ''};\n\n${location.href}`
+  );
+  document.getElementById('cta-enviar').href = `https://wa.me/5584999824799?text=${msg}`;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') fecharModalCota();
+});
+
+// ============================================================
 // HOME (/jogos_e_resultado/) — lista de bolões ativos (UC11)
 // ============================================================
 async function carregarHome() {
@@ -231,12 +364,15 @@ async function carregarHome() {
       return;
     }
     app.innerHTML = boloes.map(b => {
-      const premio = b.premio_estimado ? ` — ${escapeHtml(b.premio_estimado)}` : '';
+      const premio = b.premio_estimado ? ` ${escapeHtml(b.premio_estimado)}` : '';
+      const info = loteriaInfo(b.loteria);
+      const t = info.tema;
+      const estiloCard = t ? `background:${t.card};border-color:${t.border}` : '';
       return `
-      <div class="card">
+      <div class="card" style="${estiloCard}">
         <a href="/jogos_e_resultado/${encodeURIComponent(b.codigo)}">
           <div class="card-title">${tituloPublico(b)}${premio}</div>
-          <div class="card-sub">${escapeHtml(b.codigo)} • Sorteio: ${fmtData(b.data_sorteio)} • ${b.quantidade_cotas ?? '—'} cotas • Concurso #${b.concurso ?? '—'}</div>
+          <div class="card-sub" style="${t ? `color:${t.muted}` : ''}">${escapeHtml(b.codigo)} • Sorteio: ${fmtData(b.data_sorteio)} • ${b.quantidade_cotas ?? '—'} cotas • Concurso #${b.concurso ?? '—'}</div>
           <span class="badge ${STATUS_BADGE_CLASS[b.status] || ''}">${STATUS_LABEL[b.status] || b.status}</span>
         </a>
       </div>`;
@@ -254,26 +390,48 @@ async function carregarDetalhe(codigo) {
   const app = document.getElementById('app');
   try {
     const { bolao, estrategia, jogos, resultado } = await apiGet('/api/public/boloes/' + encodeURIComponent(codigo));
-    const info = loteriaInfo(bolao.loteria);
-    let html = '<a href="/jogos_e_resultado/" class="back">&larr; Todos os bolões</a>';
+    aplicarTemaLoteria(bolao.loteria);
+    const back = '<a href="/jogos_e_resultado/" class="back">&larr; Todos os bolões</a>';
 
-    const premio = bolao.premio_estimado ? ` — ${escapeHtml(bolao.premio_estimado)}` : '';
-    html += `
+    // CTA de compra (início e fim da página): clicar no botão abre um modal
+    // central com o seletor de cotas (0,5 em 0,5) antes de montar a
+    // mensagem do WhatsApp — mesmo botão/modal nas duas posições.
+    bolaoAtual = bolao;
+    ctaQtd = 1;
+    const htmlCtaTop = bolao.status === 'ABERTO' ? renderCtaBotao() : '';
+    const htmlCtaBottom = bolao.status === 'ABERTO' ? renderCtaBotao() : '';
+    const htmlCtaModal = bolao.status === 'ABERTO' ? renderCtaModal() : '';
+
+    const premio = bolao.premio_estimado ? ` ${escapeHtml(bolao.premio_estimado)}` : '';
+    const htmlHeader = `
     <div class="card">
       <div class="card-title">${tituloPublico(bolao)}${premio}</div>
       <div class="card-sub">${escapeHtml(bolao.codigo)} • Sorteio: ${fmtData(bolao.data_sorteio)} • ${bolao.quantidade_cotas ?? '—'} cotas • Concurso #${bolao.concurso ?? '—'}</div>
       <span class="badge ${STATUS_BADGE_CLASS[bolao.status] || ''}">${STATUS_LABEL[bolao.status] || bolao.status}</span>
     </div>`;
 
-    if (bolao.status === 'ABERTO') {
-      const msgCompra = encodeURIComponent(
-        `Olá! Quero comprar uma cota do bolão ${tituloPublico(bolao)} — ${bolao.codigo}, concurso #${bolao.concurso ?? ''}.\n${location.href}`
-      );
-      html += `<a class="cta-comprar" href="https://wa.me/5584999824799?text=${msgCompra}" target="_blank" rel="noopener">🛒 Quero comprar uma cota!</a>`;
+    let htmlResultado = '';
+    if (resultado) {
+      htmlResultado = '<div class="section-title">Resultado do sorteio</div><div class="card">';
+      htmlResultado += `<div style="font-size:.75rem;color:var(--muted);margin-bottom:6px">Dezenas sorteadas${resultado.data_apuracao ? ' • ' + fmtData(resultado.data_apuracao) : ''}:</div>`;
+      const dezenasSorteadasOrdenadas = resultado.dezenas_sorteadas.slice().sort((a, b) => a - b);
+      htmlResultado += `<div class="bolas">${dezenasSorteadasOrdenadas.map(d => bolaHtml(d, bolao.loteria, true, true)).join('')}</div>`;
+      if (resultado.premiacoes && resultado.premiacoes.length) {
+        htmlResultado += `<table class="tabela"><thead><tr><th>Faixa</th><th>Acertos</th><th>Ganhadores</th><th>Rateio</th></tr></thead><tbody>`;
+        htmlResultado += resultado.premiacoes.map(p => `<tr>
+          <td>${escapeHtml(p.faixa || '—')}</td>
+          <td>${p.acertos_necessarios ?? '—'}</td>
+          <td>${p.ganhadores ?? '—'}</td>
+          <td>${p.valor_rateio_centavos != null ? fmtMoeda(p.valor_rateio_centavos / 100) : '—'}</td>
+        </tr>`).join('');
+        htmlResultado += '</tbody></table>';
+      }
+      htmlResultado += '</div>';
     }
 
+    let htmlEstrategia = '';
     if (estrategia) {
-      html += `<div class="section-title">Estratégia</div><div class="card">
+      htmlEstrategia = `<div class="section-title">Estratégia</div><div class="card">
         <div style="font-weight:700;margin-bottom:6px">${TIPO_ESTRATEGIA_LABEL[estrategia.tipo] || estrategia.tipo}</div>
         ${estrategia.dezenas_base && estrategia.dezenas_base.length ? `
           <div style="font-size:.75rem;color:var(--muted);margin-bottom:6px">Dezenas base:</div>
@@ -290,12 +448,12 @@ async function carregarDetalhe(codigo) {
       </div>`;
     }
 
-    html += '<div class="section-title">Jogos</div>';
+    let htmlJogos = '<div class="section-title">Jogos</div>';
+    const contagemAcertos = {}; // nº de acertos -> quantidade de jogos
     if (!jogos.length) {
-      html += '<div class="empty">Jogos ainda não divulgados para este bolão.</div>';
+      htmlJogos += '<div class="empty">Jogos ainda não divulgados para este bolão.</div>';
     } else {
-      const contagemAcertos = {}; // nº de acertos -> quantidade de jogos
-      html += '<div class="card">' + jogos.map((j, i) => {
+      htmlJogos += '<div class="card">' + jogos.map((j, i) => {
         const sorteadas = resultado ? new Set(resultado.dezenas_sorteadas) : null;
         const dezenasOrdenadas = j.dezenas.slice().sort((a, b) => a - b);
         const bolasHtml = dezenasOrdenadas.map(d => bolaHtml(d, bolao.loteria, sorteadas ? sorteadas.has(d) : false)).join('');
@@ -307,39 +465,24 @@ async function carregarDetalhe(codigo) {
         }
         return `<div class="jogo-row"><div class="jogo-idx">#${i + 1}</div><div class="bolas">${bolasHtml}</div>${tagAcertos}</div>`;
       }).join('') + '</div>';
-
-      if (resultado) {
-        const contagens = Object.keys(contagemAcertos).map(Number).sort((a, b) => b - a);
-        html += '<div class="section-title">Resumo de acertos</div><div class="card">';
-        html += contagens.map(acertos => {
-          const qtd = contagemAcertos[acertos];
-          const premiado = ehFaixaPremiada(bolao.loteria, acertos);
-          return `<div class="resumo-linha${premiado ? ' premiado' : ''}">
-            <span>${premiado ? '💰 ' : ''}${acertos} acerto${acertos === 1 ? '' : 's'}</span>
-            <span>${qtd} jogo${qtd === 1 ? '' : 's'}</span>
-          </div>`;
-        }).join('');
-        html += '</div>';
-      }
     }
 
-    if (resultado) {
-      html += '<div class="section-title">Resultado do sorteio</div><div class="card">';
-      html += `<div style="font-size:.75rem;color:var(--muted);margin-bottom:6px">Dezenas sorteadas${resultado.data_apuracao ? ' • ' + fmtData(resultado.data_apuracao) : ''}:</div>`;
-      const dezenasSorteadasOrdenadas = resultado.dezenas_sorteadas.slice().sort((a, b) => a - b);
-      html += `<div class="bolas">${dezenasSorteadasOrdenadas.map(d => bolaHtml(d, bolao.loteria, true, true)).join('')}</div>`;
-      if (resultado.premiacoes && resultado.premiacoes.length) {
-        html += `<table class="tabela"><thead><tr><th>Faixa</th><th>Acertos</th><th>Ganhadores</th><th>Rateio</th></tr></thead><tbody>`;
-        html += resultado.premiacoes.map(p => `<tr>
-          <td>${escapeHtml(p.faixa || '—')}</td>
-          <td>${p.acertos_necessarios ?? '—'}</td>
-          <td>${p.ganhadores ?? '—'}</td>
-          <td>${p.valor_rateio_centavos != null ? fmtMoeda(p.valor_rateio_centavos / 100) : '—'}</td>
-        </tr>`).join('');
-        html += '</tbody></table>';
-      }
-      html += '</div>';
+    let htmlResumo = '';
+    if (resultado && jogos.length) {
+      const contagens = Object.keys(contagemAcertos).map(Number).sort((a, b) => b - a);
+      htmlResumo = '<div class="section-title">Resumo de acertos</div><div class="card">';
+      htmlResumo += contagens.map(acertos => {
+        const qtd = contagemAcertos[acertos];
+        const premiado = ehFaixaPremiada(bolao.loteria, acertos);
+        return `<div class="resumo-linha${premiado ? ' premiado' : ''}">
+          <span>${premiado ? '💰 ' : ''}${acertos} acerto${acertos === 1 ? '' : 's'}</span>
+          <span>${qtd} jogo${qtd === 1 ? '' : 's'}</span>
+        </div>`;
+      }).join('');
+      htmlResumo += '</div>';
     }
+
+    let html = back + htmlCtaTop + htmlHeader + htmlResultado + htmlEstrategia + htmlJogos + htmlResumo + htmlCtaBottom + htmlCtaModal;
 
     html += `<div class="footer">Conteúdo informativo do bolão N-Chances. Nenhum dado pessoal de participantes é exibido nesta página.</div>`;
 
