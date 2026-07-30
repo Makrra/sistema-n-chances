@@ -534,6 +534,7 @@ select.form-control option { background: var(--bg); }
     <div class="form-group">
       <label class="form-label">Cliente</label>
       <input class="form-control" id="ap-busca" placeholder="Buscar por nome ou telefone..." oninput="filtrarApClientes()">
+      <button type="button" class="btn btn-sm" style="background:var(--accent2);color:var(--info);margin-top:8px" onclick="abrirNovoClienteDoAddPart()">+ Cadastrar novo cliente</button>
       <div id="ap-selecionado" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(46,213,115,.12);color:var(--green);font-size:.8rem;font-weight:600"></div>
       <div class="picker-list" id="ap-clientes-list" onclick="onPickApCliente(event)"></div>
     </div>
@@ -735,7 +736,7 @@ select.form-control option { background: var(--bg); }
     </div>
     <button class="btn btn-primary btn-block" onclick="criarCliente()">Cadastrar</button>
     <div style="height:10px"></div>
-    <button class="btn btn-block" style="background:var(--border);color:var(--muted)" onclick="closeModal('modal-novo-cliente')">Cancelar</button>
+    <button class="btn btn-block" style="background:var(--border);color:var(--muted)" onclick="cancelarNovoCliente()">Cancelar</button>
   </div>
 </div>
 
@@ -814,6 +815,7 @@ let dashBoloes = [];          // boloes carregados no dashboard (p/ recálculo d
 let dashArrecadado = {};      // bolao_id -> arrecadado (excluindo cortesia do organizador)
 let currentPendentes = [];    // participações pendentes carregadas na tela de Pagtos Pendentes
 let epartOrigem = 'bolao';    // 'bolao' | 'pendentes' — de onde o modal Editar Participação foi aberto
+let ncOrigem = 'clientes';    // 'clientes' | 'add-part' — de onde o modal Novo Cliente foi aberto
 
 // ============================================================
 // NAVIGATION
@@ -2156,7 +2158,33 @@ function abrirNovoCliente() {
   document.getElementById('nc-apelido').value = '';
   document.getElementById('nc-telefone').value = '';
   document.getElementById('nc-email').value = '';
+  ncOrigem = 'clientes';
   openModal('modal-novo-cliente');
+}
+
+// Cadastro rápido de cliente sem sair do fluxo de adicionar participante —
+// pré-preenche nome ou telefone com o que já foi digitado na busca, já que
+// o motivo de estar aqui é justamente não ter achado o cliente por ela.
+function abrirNovoClienteDoAddPart() {
+  const busca = document.getElementById('ap-busca').value.trim();
+  const soDigitos = busca.replace(/\D/g, '');
+  const pareceTelefone = soDigitos.length >= 8 && soDigitos.length === busca.replace(/\s/g, '').length;
+  document.getElementById('nc-nome').value = '';
+  document.getElementById('nc-apelido').value = '';
+  document.getElementById('nc-telefone').value = pareceTelefone ? soDigitos : '';
+  document.getElementById('nc-email').value = '';
+  if (!pareceTelefone) document.getElementById('nc-nome').value = busca;
+  ncOrigem = 'add-part';
+  closeModal('modal-add-part');
+  openModal('modal-novo-cliente');
+}
+
+function cancelarNovoCliente() {
+  closeModal('modal-novo-cliente');
+  if (ncOrigem === 'add-part') {
+    ncOrigem = 'clientes';
+    openModal('modal-add-part');
+  }
 }
 
 async function criarCliente() {
@@ -2172,7 +2200,14 @@ async function criarCliente() {
   if (error) { toast('Erro: ' + error.message, true); return; }
   toast('Cliente cadastrado!');
   closeModal('modal-novo-cliente');
-  loadClientes();
+  await loadClientes();
+  if (ncOrigem === 'add-part') {
+    ncOrigem = 'clientes';
+    openModal('modal-add-part');
+    document.getElementById('ap-busca').value = '';
+    selecionarApCliente(telefone);
+    return;
+  }
 }
 
 function abrirEditarCliente(telefone) {
