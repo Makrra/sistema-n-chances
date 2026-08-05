@@ -387,6 +387,7 @@ async function carregarHome() {
         <a href="/jogos_e_resultado/${encodeURIComponent(b.codigo)}">
           <div class="card-title">${tituloPublico(b)}${premio}</div>
           <div class="card-sub" style="${t ? `color:${t.muted}` : ''}">${escapeHtml(b.codigo)} • Sorteio: ${fmtData(b.data_sorteio)} • ${b.quantidade_cotas ?? '—'} cotas • Concurso #${b.concurso ?? '—'}</div>
+          <div class="card-sub" style="${t ? `color:${t.muted}` : ''}">Cota: ${fmtMoeda(b.valor_cota_inteira)} • Meia: ${fmtMoeda(b.valor_cota_meia)}</div>
           <span class="badge ${STATUS_BADGE_CLASS[b.status] || ''}">${STATUS_LABEL[b.status] || b.status}</span>
         </a>
       </div>`;
@@ -421,6 +422,7 @@ async function carregarDetalhe(codigo) {
     <div class="card">
       <div class="card-title">${tituloPublico(bolao)}${premio}</div>
       <div class="card-sub">${escapeHtml(bolao.codigo)} • Sorteio: ${fmtData(bolao.data_sorteio)} • ${bolao.quantidade_cotas ?? '—'} cotas • Concurso #${bolao.concurso ?? '—'}</div>
+      <div class="card-sub">Cota: ${fmtMoeda(bolao.valor_cota_inteira)} • Meia: ${fmtMoeda(bolao.valor_cota_meia)}</div>
       <span class="badge ${STATUS_BADGE_CLASS[bolao.status] || ''}">${STATUS_LABEL[bolao.status] || bolao.status}</span>
     </div>`;
 
