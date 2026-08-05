@@ -27,7 +27,10 @@ export const LOTERIAS = {
     cor: '#005DA4', corTexto: '#FFFFFF',
   },
   'lotomania': {
-    nome: 'Lotomania', dezenasMin: 50, dezenasMax: 50, faixaMin: 1, faixaMax: 100,
+    // Dezenas oficiais vão de 00 a 99 (100 números), não de 1 a 100 — "00"
+    // é a própria dezena zero, não um sinônimo de 100. parseInt/Number já
+    // convertem "00" para 0, então a faixa só precisa começar em 0.
+    nome: 'Lotomania', dezenasMin: 50, dezenasMax: 50, faixaMin: 0, faixaMax: 99,
     cor: '#F99D1C', corTexto: '#000000',
   },
   'dupla-sena': {
