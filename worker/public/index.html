@@ -293,7 +293,7 @@ select.form-control option { background: var(--bg); }
     <button class="tab-btn" onclick="filterBoloes('SORTEADO')">Sorteados</button>
   </div>
   <div id="boloes-list"></div>
-  <button class="fab" onclick="openModal('modal-novo-bolao')">+</button>
+  <button class="fab" onclick="replicarOrigemId=null;openModal('modal-novo-bolao')">+</button>
 </div>
 
 <!-- ======= PAGE: CLIENTES ======= -->
@@ -418,6 +418,10 @@ select.form-control option { background: var(--bg); }
       <input class="form-control" id="nb-premio-estimado" placeholder="Ex: 10M, 100k, 1M">
     </div>
     <div class="form-group">
+      <label class="form-label">Premiação Estimada em R$ (opcional — calcula a premiação por cota na mensagem de compartilhamento)</label>
+      <input class="form-control" id="nb-premio-estimado-valor" type="number" step="0.01" placeholder="Ex: 10500000">
+    </div>
+    <div class="form-group">
       <label class="form-label">Jogos do Bolão</label>
       <textarea class="form-control" id="nb-jogos-descricao" rows="3" placeholder="Ex:&#10;10 jogos de 15 números&#10;3 jogos de 16 números"></textarea>
     </div>
@@ -427,7 +431,7 @@ select.form-control option { background: var(--bg); }
     </div>
     <button class="btn btn-primary btn-block" onclick="criarBolao()">Criar Bolão</button>
     <div style="height:10px"></div>
-    <button class="btn btn-block" style="background:var(--border);color:var(--muted)" onclick="closeModal('modal-novo-bolao')">Cancelar</button>
+    <button class="btn btn-block" style="background:var(--border);color:var(--muted)" onclick="replicarOrigemId=null;closeModal('modal-novo-bolao')">Cancelar</button>
   </div>
 </div>
 
@@ -513,6 +517,18 @@ select.form-control option { background: var(--bg); }
       <input class="form-control" id="eb-custo" type="number" step="0.01" placeholder="0.00">
     </div>
     <div class="form-group">
+      <label class="form-label">Premiação Estimada</label>
+      <input class="form-control" id="eb-premio-estimado" placeholder="Ex: 10M, 100k, 1M">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Premiação Estimada em R$ (opcional — calcula a premiação por cota nas mensagens)</label>
+      <input class="form-control" id="eb-premio-estimado-valor" type="number" step="0.01" placeholder="Ex: 10500000">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Jogos do Bolão</label>
+      <textarea class="form-control" id="eb-jogos-descricao" rows="3" placeholder="Ex:&#10;10 jogos de 15 números&#10;3 jogos de 16 números"></textarea>
+    </div>
+    <div class="form-group">
       <label class="form-label">Observação</label>
       <input class="form-control" id="eb-obs" placeholder="Opcional">
     </div>
@@ -581,6 +597,13 @@ select.form-control option { background: var(--bg); }
     <a id="comp-link" class="btn btn-block" style="background:#25D366;color:#fff;text-decoration:none;display:block;text-align:center" target="_blank" onclick="fecharComprovante(true)">Abrir WhatsApp com o Comprovante</a>
     <div style="height:10px"></div>
     <button class="btn btn-block" style="background:var(--border);color:var(--muted)" onclick="fecharComprovante()">Fechar</button>
+  </div>
+</div>
+
+<!-- Modal: Oferecer bolão (campanha WhatsApp p/ quem ainda não participa) -->
+<div class="modal-overlay" id="modal-ofertas">
+  <div class="modal" id="modal-ofertas-content">
+    <div class="loading"><div class="spinner"></div>Carregando...</div>
   </div>
 </div>
 
@@ -749,11 +772,24 @@ select.form-control option { background: var(--bg); }
 // ============================================================
 const API_BASE = '/api';
 async function apiCall(method, path, body) {
-  const res = await fetch(API_BASE + path, {
-    method,
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(API_BASE + path, {
+      method,
+      headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    return { data: null, error: { message: 'Falha de rede. Verifique sua conexão e tente novamente.' } };
+  }
+  // Sessão do Cloudflare Access expirada: o fetch é redirecionado pra página
+  // de login do Access, que responde 200 OK com HTML — sem isso, o código
+  // achava que tinha dado certo (res.ok true) mesmo sem a requisição ter
+  // chegado no worker. Detecta pelo content-type antes de tentar parsear.
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    return { data: null, error: { message: 'Sessão expirada. Faça login novamente (recarregue a página) e tente de novo.' } };
+  }
   let data = null;
   try { data = await res.json(); } catch { /* sem corpo */ }
   if (!res.ok) return { data: null, error: { message: data?.error || res.statusText } };
@@ -797,12 +833,73 @@ function tituloBolao(b) {
   return b.concurso ? `${base} #${b.concurso}` : base;
 }
 
+// Monta o texto formatado para compartilhar o bolão no grupo do WhatsApp,
+// no modelo passado pelo organizador. `linkPublico` vem calculado por quem
+// chama (mesmo cálculo já usado em abrirJogos), null se o bolão ainda não
+// tem código.
+function textoCompartilhamentoBolao(b, linkPublico) {
+  const ehEspecial = b.tipo_sorteio === 'especial' && b.nome;
+  // O campo "nome" de sorteios especiais é só o nome próprio (ex. "da Independência"),
+  // sem o nome da loteria — o rótulo completo da loteria (emoji + nome) sempre vai na
+  // frente, tanto pra sorteio normal quanto especial.
+  const tipoLabel = ehEspecial ? b.nome.toUpperCase() : (TIPO_SORTEIO_LABEL[b.tipo_sorteio] || '');
+  const cabecalho = [LOTERIA_LABEL[b.loteria] || (b.loteria || '').toUpperCase(), tipoLabel]
+    .filter(Boolean).join(' ');
+  const dataLinha = fmtDataCurta(b.data_sorteio) + (b.data_sorteio === dataHojeStr() ? ' (HOJE)' : '');
+  // Edição especial custuma ter prêmio bem maior que o normal — vale reforçar com um
+  // gatilho de venda extra, que sorteios comuns não têm.
+  const destaqueEspecial = ehEspecial ? '\n\n🎉🔥 *EDIÇÃO ESPECIAL: PRÊMIO MUITO MAIOR, OPORTUNIDADE ÚNICA!* 🔥🎉' : '';
+
+  let premiacaoInteira = null, premiacaoMeia = null;
+  if (b.premio_estimado_valor && b.quantidade_cotas) {
+    const porCotaInteira = b.premio_estimado_valor / b.quantidade_cotas;
+    premiacaoInteira = fmtValorAbreviado(porCotaInteira);
+    premiacaoMeia = fmtValorAbreviado(porCotaInteira / 2);
+  }
+
+  // Preserva quebras de linha do campo "Jogos do Bolão" (textarea de várias linhas),
+  // prefixando ">" em cada uma — não só na primeira.
+  const jogosLinhas = (b.jogos_descricao || '—').split('\n').map(l => `> ${l}`).join('\n');
+
+  return `*${cabecalho}*${destaqueEspecial}
+
+*${dataLinha}*
+
+Concurso: *${b.concurso ?? '—'}*
+Prêmio: *${b.premio_estimado || '—'}* 💰
+Quant Cotas: *${b.quantidade_cotas ?? '—'} cotistas*
+
+Cota Meia: *${fmtReaisSufixo(b.valor_cota_meia)}* 💵${premiacaoMeia ? `\nPremiação: *${premiacaoMeia}* 🤑` : ''}
+
+Cota Inteira: *${fmtReaisSufixo(b.valor_cota_inteira)}* 💵${premiacaoInteira ? `\nPremiação: *${premiacaoInteira}* 🤑` : ''}
+
+${jogosLinhas}
+
+
+🔗 Bolões e Jogos disponíveis no link abaixo.
+👇👇👇👇👇
+${linkPublico || location.origin + '/jogos_e_resultado/'}
+
+O pix é o:
+👇👇👇
+*pix@nchances.com.br*
+
+Obs.1: A divisão dos lucros é um valor estimado e toma como base a quantidade total de cotistas, se o nosso jogo alcançar a premiação principal e se for o único jogo vencedor do dia.
+
+Obs.2: Cotas adquiridas em outros bolões seguem divisão em duas etapas: primeiro o prêmio é dividido pela quantidade de participantes do bolão de origem; depois o valor dessa cota é então dividido entre os participantes deste bolão.
+
+*Aqui a gente estuda e planeja pra jogar melhor. Isso aumenta as chances, mas não garante o resultado.*
+
+*Joguem com consciência*`;
+}
+
 // ============================================================
 // STATE
 // ============================================================
 let allClientes = [];
 let allBoloes   = [];
 let currentBolaoFilter = 'todos';
+let replicarOrigemId = null; // bolão de origem quando o próximo "Criar Bolão" vem do fluxo Replicar
 let currentSaquesFilter = 'pendente';
 let currentBolaoParts = [];
 let comprovanteBolaoId = null;
@@ -816,6 +913,13 @@ let dashArrecadado = {};      // bolao_id -> arrecadado (excluindo cortesia do o
 let currentPendentes = [];    // participações pendentes carregadas na tela de Pagtos Pendentes
 let epartOrigem = 'bolao';    // 'bolao' | 'pendentes' — de onde o modal Editar Participação foi aberto
 let ncOrigem = 'clientes';    // 'clientes' | 'add-part' — de onde o modal Novo Cliente foi aberto
+// Campanha de oferta (modal 📣 Oferecer) — ver docs/oferta-bolao-whatsapp.md
+let ofertaCandidatos = [];    // clientes que ainda não participam do bolão aberto
+let ofertaBolao = null;       // bolão sendo ofertado
+let ofertaFiltro = 'todos';   // 'todos' | 'com-saldo' | 'recorrente' | 'sumido' | 'novo' | 'nao-enviados'
+let ofertaCotasRestantes = null;
+let ofertaTemplateSalvo = '';           // corpo atualmente gravado no servidor
+let ofertaTemplatePersonalizado = false; // false = ainda é o texto padrão de fábrica
 
 // ============================================================
 // NAVIGATION
@@ -863,6 +967,30 @@ function toast(msg, error = false) {
 // ============================================================
 const fmtMoeda = v => 'R$ ' + parseFloat(v||0).toFixed(2).replace('.', ',');
 const fmtData  = d => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+// "7,00 R$" (sufixo, não prefixo) — formato usado na mensagem de
+// compartilhamento no WhatsApp, que segue o modelo enviado pelo organizador.
+const fmtReaisSufixo = v => parseFloat(v||0).toFixed(2).replace('.', ',') + ' R$';
+// dd/mm/aa a partir de uma data 'YYYY-MM-DD', sem passar por Date() (evita
+// o dia mudar por causa de fuso horário — mesmo motivo do resto do app usar
+// strings de data cruas em vez de objetos Date pra comparação).
+const fmtDataCurta = d => {
+  if (!d) return '—';
+  const [y, m, dd] = d.slice(0, 10).split('-');
+  return `${dd}/${m}/${y.slice(2)}`;
+};
+const dataHojeStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+// "10500000" -> "10,5M" · "525000" -> "525k" — abreviação usada na linha de
+// premiação estimada por cota da mensagem de compartilhamento.
+function fmtValorAbreviado(valor) {
+  if (valor == null) return null;
+  const abs = Math.abs(valor);
+  if (abs >= 1_000_000) return (valor / 1_000_000).toFixed(1).replace('.0', '').replace('.', ',') + 'M';
+  if (abs >= 1_000) return Math.round(valor / 1000) + 'k';
+  return String(Math.round(valor));
+}
 const fmtDataExtenso = d => {
   if (!d) return '—';
   const date = new Date(d + 'T00:00:00');
@@ -888,7 +1016,7 @@ function montarMensagemComprovante(bolao, cotas, posicao, saldo, part = {}) {
   // Sem "#concurso" aqui — ele já aparece mais adiante na mesma frase
   // ("no sorteio do concurso *N*"), ficaria repetido.
   const tituloBolaо = [loteriaLabel, tipoSorteioLabel].filter(Boolean).join(' ');
-  const jogos = (bolao.jogos_descricao||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>`*> ${l}*`).join('\n');
+  const jogos = (bolao.jogos_descricao||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>`> ${l}`).join('\n');
   const saldoFmt = 'R$ ' + parseFloat(saldo||0).toFixed(2).replace('.', ',');
 
   let pagamentoSection = '';
@@ -915,7 +1043,9 @@ function montarMensagemComprovante(bolao, cotas, posicao, saldo, part = {}) {
     + `O sorteio ocorrerá no dia *${fmtDataExtenso(bolao.data_sorteio)}*. Estamos em *${bolao.quantidade_cotas} cotistas*.\n\n`
     + `Posição Lista: *${posicao || '—'}*\n\n`
     + `Saldo: *${saldoFmt}*${pagamentoSection}\n\n`
-    + `> *Obs.:* Se o bolão for premiado, o valor é dividido proporcionalmente entre todos os cotistas — quem adquiriu mais cotas recebe uma parte maior do prêmio.`;
+    + `> *Obs.1:* O bolão é dividido em cotas, se o bolão for premiado, o valor é dividido proporcionalmente entre todos os cotistas, quanto mais cotas adquiridas mas otimiza-se a premiação.\n\n`
+    + `*Aqui a gente estuda e planeja pra jogar melhor. Isso aumenta as chances, mas não garante o resultado.*\n\n`
+    + `*Joguem com consciência.*`;
 }
 
 // Link que abre a conversa do participante no WhatsApp já com o comprovante pronto
@@ -1181,30 +1311,54 @@ async function criarBolao() {
   const cotasReservadas = parseFloat(document.getElementById('nb-cotas-reservadas').value) || 0;
   const custo        = parseFloat(document.getElementById('nb-custo').value) || 0;
   const premioEstimado = document.getElementById('nb-premio-estimado').value.trim();
+  const premioEstimadoValor = document.getElementById('nb-premio-estimado-valor').value;
   const jogosDescricao = document.getElementById('nb-jogos-descricao').value.trim();
   const obs          = document.getElementById('nb-obs').value.trim();
   if (!concurso) { toast('Informe o número do concurso', true); return; }
   if (!data) { toast('Informe a data do sorteio', true); return; }
   if (cotasReservadas > cotas) { toast('Cotas reservadas não podem ser maiores que o nº de cotas', true); return; }
-  const { error } = await api.post('/boloes', {
+  const { data: novoBolao, error } = await api.post('/boloes', {
     loteria, tipo_sorteio: tipoSorteio,
     nome: tipoSorteio === 'especial' ? (nomeEspecial || null) : null,
     concurso: parseInt(concurso),
     data_sorteio: data,
     valor_cota_inteira: valor, valor_cota_meia: meiaCota, quantidade_cotas: cotas,
     cotas_reservadas: cotasReservadas, custo, observacao: obs || null,
-    premio_estimado: premioEstimado || null, jogos_descricao: jogosDescricao || null,
+    premio_estimado: premioEstimado || null,
+    premio_estimado_valor: premioEstimadoValor !== '' ? parseFloat(premioEstimadoValor) : null,
+    jogos_descricao: jogosDescricao || null,
   });
   if (error) { toast('Erro: ' + error.message, true); return; }
   toast('Bolão criado!');
   closeModal('modal-novo-bolao');
+  if (replicarOrigemId) await copiarJogosEstrategia(replicarOrigemId, novoBolao.id);
+  replicarOrigemId = null;
   loadBoloes();
   // limpar form
-  ['nb-concurso','nb-data','nb-valor','nb-meia-cota','nb-custo','nb-premio-estimado','nb-jogos-descricao','nb-obs','nb-nome-especial'].forEach(id => document.getElementById(id).value = '');
+  ['nb-concurso','nb-data','nb-valor','nb-meia-cota','nb-custo','nb-premio-estimado','nb-premio-estimado-valor','nb-jogos-descricao','nb-obs','nb-nome-especial'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('nb-cotas').value = '1';
   document.getElementById('nb-cotas-reservadas').value = '0';
   document.getElementById('nb-tipo-sorteio').value = 'acumulado';
   toggleNomeEspecial('nb');
+}
+
+// Copia jogos + estratégia (sem o comprovante, que é específico da aposta
+// original) de um bolão pra outro — usado pelo fluxo de Replicar.
+async function copiarJogosEstrategia(origemId, destinoId) {
+  const [estRes, jogosRes] = await Promise.all([
+    api.get(`/boloes/${origemId}/estrategia`),
+    api.get(`/boloes/${origemId}/jogos`),
+  ]);
+  const estrategia = estRes.data?.estrategia;
+  if (estrategia) {
+    await api.put(`/boloes/${destinoId}/estrategia`, {
+      tipo: estrategia.tipo, dezenas_base: estrategia.dezenas_base, descricao: estrategia.descricao,
+    });
+  }
+  const jogos = jogosRes.data?.jogos || [];
+  if (jogos.length) {
+    await api.put(`/boloes/${destinoId}/jogos`, { jogos: jogos.map(j => j.dezenas) });
+  }
 }
 
 // ============================================================
@@ -1253,9 +1407,11 @@ async function abrirBolao(id) {
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
       <button class="btn btn-primary btn-sm" onclick="abrirAddPart('${b.id}')">+ Participante</button>
       <button class="btn btn-sm" style="background:var(--green);color:#fff" onclick="abrirJogos('${b.id}')">🎱 Jogos</button>
+      ${b.status === 'ABERTO' ? `<button class="btn btn-sm" style="background:#25D366;color:#fff" onclick="abrirOfertas('${b.id}')">📣 Oferecer</button>` : ''}
       ${b.status === 'ABERTO' ? `<button class="btn btn-sm" style="background:var(--yellow);color:#000" onclick="confirmarFecharBolao('${b.id}')">Fechar Bolão</button>` : ''}
       ${b.status === 'FECHADO' ? `<button class="btn btn-sm" style="background:var(--green);color:#fff" onclick="marcarSorteado('${b.id}')">Marcar Sorteado</button>` : ''}
       <button class="btn btn-sm" style="background:var(--accent2);color:var(--info)" onclick="abrirEditarBolao('${b.id}')">Editar</button>
+      <button class="btn btn-sm" style="background:var(--border);color:var(--text)" onclick="replicarBolao('${b.id}')">🔁 Replicar</button>
       <button class="btn btn-sm" style="background:var(--red);color:#fff" onclick="confirmarExcluirBolao('${b.id}')">Excluir</button>
       <button class="btn btn-sm" style="background:var(--border);color:var(--muted)" onclick="closeModal('modal-bolao-det')">Fechar</button>
     </div>
@@ -1430,6 +1586,7 @@ async function abrirJogos(bolaoId) {
       <label class="form-label">Link público</label>
       <input class="form-control" readonly value="${linkPublico}" onclick="this.select()">
     </div>
+    <button class="btn btn-sm btn-block" style="background:var(--accent2);color:var(--info);margin-bottom:10px" onclick="copiarTextoCompartilhamento()">📋 Copiar mensagem para o grupo</button>
     <a href="https://wa.me/?text=${encodeURIComponent('Confira os jogos do bolão ' + tituloBolao(b) + ' (' + b.codigo + '): ' + linkPublico)}" target="_blank" rel="noopener">
       <button class="btn btn-sm btn-block" style="background:#25D366;color:#063;margin-bottom:10px">📲 Compartilhar link no WhatsApp</button>
     </a>` : `<div style="font-size:.75rem;color:var(--muted);margin-bottom:10px">Este bolão ainda não tem código — link público fica disponível após ter um.</div>`}
@@ -1508,6 +1665,18 @@ async function salvarJogos() {
 // Copia os jogos no formato "10,15,53,55,35,06", (dezenas com 2 algarismos,
 // separadas por vírgula, entre aspas, com uma vírgula extra fora das aspas
 // no fim de cada linha) — um jogo por linha, pra colar em outro sistema.
+async function copiarTextoCompartilhamento() {
+  if (!jgBolao) return;
+  const linkPublico = jgBolao.codigo ? `${location.origin}/jogos_e_resultado/${jgBolao.codigo}` : null;
+  const texto = textoCompartilhamentoBolao(jgBolao, linkPublico);
+  try {
+    await navigator.clipboard.writeText(texto);
+    toast('Mensagem copiada!');
+  } catch (e) {
+    toast('Não foi possível copiar automaticamente. Selecione e copie manualmente.', true);
+  }
+}
+
 async function copiarJogos() {
   const jogos = extrairJogosValidos();
   if (!jogos) return;
@@ -1741,9 +1910,39 @@ function abrirEditarBolao(id) {
   document.getElementById('eb-cotas').value = b.quantidade_cotas || 1;
   document.getElementById('eb-premio').value = b.premio_ganho || 0;
   document.getElementById('eb-custo').value = b.custo || 0;
+  document.getElementById('eb-premio-estimado').value = b.premio_estimado || '';
+  document.getElementById('eb-premio-estimado-valor').value = b.premio_estimado_valor ?? '';
+  document.getElementById('eb-jogos-descricao').value = b.jogos_descricao || '';
   document.getElementById('eb-obs').value = b.observacao || '';
   closeModal('modal-bolao-det');
   openModal('modal-editar-bolao');
+}
+
+// Abre o modal de Novo Bolão pré-preenchido com os dados do bolão de
+// origem — tudo editável antes de salvar. Jogos e estratégia só são
+// copiados depois, em criarBolao(), quando o novo bolão já tem um id.
+function replicarBolao(id) {
+  const b = allBoloes.find(x => x.id === id);
+  if (!b) return;
+  closeModal('modal-bolao-det');
+  document.getElementById('nb-loteria').value = b.loteria || 'mega-sena';
+  document.getElementById('nb-tipo-sorteio').value = b.tipo_sorteio || 'acumulado';
+  document.getElementById('nb-nome-especial').value = b.tipo_sorteio === 'especial' ? (b.nome || '') : '';
+  toggleNomeEspecial('nb');
+  document.getElementById('nb-concurso').value = b.concurso || '';
+  document.getElementById('nb-data').value = b.data_sorteio || '';
+  document.getElementById('nb-valor').value = b.valor_cota_inteira || '';
+  document.getElementById('nb-meia-cota').value = b.valor_cota_meia || '';
+  document.getElementById('nb-cotas').value = b.quantidade_cotas || 1;
+  document.getElementById('nb-cotas-reservadas').value = '0';
+  document.getElementById('nb-custo').value = b.custo || '';
+  document.getElementById('nb-premio-estimado').value = b.premio_estimado || '';
+  document.getElementById('nb-premio-estimado-valor').value = b.premio_estimado_valor ?? '';
+  document.getElementById('nb-jogos-descricao').value = b.jogos_descricao || '';
+  document.getElementById('nb-obs').value = '';
+  replicarOrigemId = id;
+  openModal('modal-novo-bolao');
+  toast('Dados carregados — ajuste o que precisar e clique em Criar Bolão.');
 }
 
 async function salvarEdicaoBolao() {
@@ -1758,6 +1957,9 @@ async function salvarEdicaoBolao() {
   const cotas       = parseInt(document.getElementById('eb-cotas').value) || 1;
   const premio      = parseFloat(document.getElementById('eb-premio').value) || 0;
   const custo       = parseFloat(document.getElementById('eb-custo').value) || 0;
+  const premioEstimado      = document.getElementById('eb-premio-estimado').value.trim();
+  const premioEstimadoValor = document.getElementById('eb-premio-estimado-valor').value;
+  const jogosDescricao      = document.getElementById('eb-jogos-descricao').value.trim();
   const obs         = document.getElementById('eb-obs').value.trim();
   if (!concurso) { toast('Informe o número do concurso', true); return; }
   if (!data) { toast('Informe a data do sorteio', true); return; }
@@ -1767,6 +1969,9 @@ async function salvarEdicaoBolao() {
     concurso: parseInt(concurso), data_sorteio: data,
     valor_cota_inteira: valor, valor_cota_meia: meiaCota, quantidade_cotas: cotas,
     premio_ganho: premio, custo, observacao: obs || null,
+    premio_estimado: premioEstimado || null,
+    premio_estimado_valor: premioEstimadoValor === '' ? null : premioEstimadoValor,
+    jogos_descricao: jogosDescricao || null,
   });
   if (error) { toast('Erro: ' + error.message, true); return; }
   toast('Bolão atualizado!');
@@ -2012,6 +2217,311 @@ function renderParticipantesLista(filter) {
         </div>
       </div>`;
   }).join('');
+}
+
+// ============================================================
+// CAMPANHA DE OFERTA (📣 Oferecer) — ver docs/oferta-bolao-whatsapp.md
+//
+// Lista os clientes que ainda NÃO têm participação no bolão aberto e abre a
+// conversa de cada um no WhatsApp com uma mensagem personalizada. O texto
+// vem de um template editável salvo no servidor (rota /api/templates), então
+// não depende de cache do browser — igual ao resto da lógica de negócio.
+//
+// O envio é 1-a-1 de propósito: `wa.me` não permite disparo em massa, e a
+// alternativa (WhatsApp Cloud API) exigiria template aprovado pela Meta,
+// tirando justamente a liberdade de editar a mensagem na hora.
+// ============================================================
+const SEGMENTO_LABEL = {
+  novo:       { txt: 'Nunca comprou', cor: 'var(--muted)' },
+  recorrente: { txt: 'Recorrente',    cor: 'var(--green)' },
+  sumido:     { txt: 'Sumido',        cor: 'var(--yellow)' },
+};
+
+async function abrirOfertas(bolaoId) {
+  const modal = document.getElementById('modal-ofertas-content');
+  modal.innerHTML = '<div class="loading"><div class="spinner"></div>Carregando...</div>';
+  closeModal('modal-bolao-det');
+  openModal('modal-ofertas');
+
+  const [candRes, tplRes] = await Promise.all([
+    api.get(`/boloes/${bolaoId}/ofertas`),
+    api.get('/templates/oferta_bolao'),
+  ]);
+  if (candRes.error) { toast('Erro ao carregar clientes: ' + candRes.error.message, true); closeModal('modal-ofertas'); return; }
+  if (tplRes.error)  { toast('Erro ao carregar template: ' + tplRes.error.message, true); closeModal('modal-ofertas'); return; }
+
+  ofertaBolao = currentBolaoData;
+  ofertaCandidatos = candRes.data.candidatos;
+  ofertaFiltro = 'todos';
+  ofertaTemplateSalvo = tplRes.data.corpo;
+  ofertaTemplatePersonalizado = tplRes.data.personalizado;
+  // Cotas ainda livres — entra na mensagem como gatilho de escassez. null
+  // quando o bolão não define quantidade de cotas (aí o placeholder some).
+  const ocupadas = currentBolaoParts.reduce((s, p) => s + (parseFloat(p.cotas) || 0), 0);
+  ofertaCotasRestantes = ofertaBolao?.quantidade_cotas != null
+    ? Math.max(0, ofertaBolao.quantidade_cotas - ocupadas)
+    : null;
+
+  const r = candRes.data.resumo;
+  modal.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+      <div class="modal-title" style="margin-bottom:0">📣 Oferecer bolão</div>
+      <button class="btn btn-sm" style="background:var(--border);color:var(--muted)" onclick="fecharOfertas()">Fechar</button>
+    </div>
+    <div style="font-size:.8rem;color:var(--muted);margin-bottom:14px">
+      ${tituloBolao(ofertaBolao)} • <span id="oferta-resumo">${r.total} cliente(s) fora do bolão • ${r.enviadas} já contatado(s)</span>
+      ${ofertaCotasRestantes != null ? ` • ${ofertaCotasRestantes} cota(s) livres` : ''}
+    </div>
+
+    <div class="form-group">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <label class="form-label" style="margin:0">Mensagem enviada a todos</label>
+        <span id="oferta-tpl-status" style="font-size:.68rem"></span>
+      </div>
+      <textarea class="form-control" id="oferta-template" rows="8" oninput="onTemplateOfertaInput()">${escapeHtmlAdmin(tplRes.data.corpo)}</textarea>
+      <div style="font-size:.68rem;color:var(--muted);margin-top:6px;line-height:1.5">
+        Campos: <code>{{nome}}</code> <code>{{titulo}}</code> <code>{{concurso}}</code>
+        <code>{{data_sorteio}}</code> <code>{{premio}}</code> <code>{{jogos}}</code>
+        <code>{{valor_meia}}</code> <code>{{valor_inteira}}</code>
+        <code>{{premiacao_meia}}</code> <code>{{premiacao_inteira}}</code>
+        <code>{{cotas_restantes}}</code> <code>{{saldo}}</code> <code>{{link}}</code><br>
+        Trechos entre <code>{{#campo}}</code> e <code>{{/campo}}</code> só aparecem quando o dado existe
+        (ex.: <code>{{#saldo}}</code> some para quem não tem saldo; as premiações somem se o bolão
+        não tiver <em>Prêmio estimado (valor)</em> e nº de cotas preenchidos).
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-primary" onclick="salvarTemplateOferta()">Salvar mensagem</button>
+        <button class="btn btn-sm" style="background:var(--border);color:var(--text)" onclick="restaurarTemplateOferta()">Restaurar padrão</button>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">
+      ${[['todos','Todos'],['com-saldo','💳 Com saldo'],['recorrente','Recorrentes'],['sumido','Sumidos'],['novo','Nunca compraram'],['nao-enviados','Não contatados']]
+        .map(([f, lbl]) => `<button id="oferta-chip-${f}" class="btn btn-sm" style="font-size:.65rem;padding:3px 8px" onclick="renderOfertasLista('${f}')">${lbl}</button>`).join('')}
+    </div>
+    <div id="oferta-lista"></div>
+  `;
+  atualizarStatusTemplate();
+  renderOfertasLista('todos');
+}
+
+// Deixa explícito na tela de onde vem o texto que vai ser enviado: o padrão de
+// fábrica, a mensagem que o organizador gravou, ou uma edição que ele ainda não
+// salvou (essa última só valeria enquanto o modal estivesse aberto).
+function atualizarStatusTemplate() {
+  const el = document.getElementById('oferta-tpl-status');
+  const ta = document.getElementById('oferta-template');
+  if (!el || !ta) return;
+  if (ta.value !== ofertaTemplateSalvo) {
+    el.textContent = '● alterações não salvas';
+    el.style.color = 'var(--yellow)';
+  } else if (ofertaTemplatePersonalizado) {
+    el.textContent = '✓ sua mensagem salva';
+    el.style.color = 'var(--green)';
+  } else {
+    el.textContent = 'texto padrão';
+    el.style.color = 'var(--muted)';
+  }
+}
+
+function onTemplateOfertaInput() {
+  atualizarStatusTemplate();
+  renderOfertasLista(ofertaFiltro);
+}
+
+function fecharOfertas() {
+  closeModal('modal-ofertas');
+  // Reabre o bolão para o organizador ver as cotas atualizadas se alguém
+  // comprou no meio da campanha.
+  if (ofertaBolao) abrirBolao(ofertaBolao.id);
+}
+
+// Substitui os placeholders do template pelos dados do bolão + cliente.
+//
+// Suporta blocos condicionais {{#campo}}...{{/campo}}, removidos inteiros
+// quando o campo não se aplica. Sem isso a mensagem mostraria "você tem
+// R$ 0,00 de saldo" para quem não tem nada, ou uma linha de premiação vazia
+// em bolão sem prêmio estimado cadastrado — nunca exibir conta pela metade é
+// o mesmo princípio já adotado em textoCompartilhamentoBolao.
+function aplicarTemplate(corpo, valores, presentes = {}) {
+  let out = corpo.replace(
+    /\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g,
+    (m, chave, conteudo) => (presentes[chave] ? conteudo : '')
+  );
+  out = out.replace(/\{\{(\w+)\}\}/g, (m, chave) => (valores[chave] != null ? String(valores[chave]) : ''));
+  // Remover um bloco deixa linhas em branco sobrando.
+  return out.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function montarMensagemOferta(candidato) {
+  const b = ofertaBolao || {};
+  const linkPublico = b.codigo ? `${location.origin}/jogos_e_resultado/${b.codigo}` : `${location.origin}/jogos_e_resultado/`;
+
+  // Premiação estimada por cota — mesmo cálculo (e mesma ressalva) do texto de
+  // divulgação em grupo: premio_estimado_valor ÷ quantidade_cotas, meia = metade.
+  // O campo de texto `premio_estimado` ("10,5M") não serve para isso, por isso
+  // existe o `premio_estimado_valor` numérico. Sem ele, as linhas de premiação
+  // somem da mensagem em vez de mostrar conta errada.
+  let premiacaoInteira = null, premiacaoMeia = null;
+  if (b.premio_estimado_valor && b.quantidade_cotas) {
+    const porCotaInteira = b.premio_estimado_valor / b.quantidade_cotas;
+    premiacaoInteira = fmtValorAbreviado(porCotaInteira);
+    premiacaoMeia = fmtValorAbreviado(porCotaInteira / 2);
+  }
+  // Campo "Jogos do Bolão" é textarea de várias linhas — cada linha vira
+  // citação do WhatsApp, igual ao texto de grupo.
+  const jogosTxt = (b.jogos_descricao || '').trim();
+  const jogos = jogosTxt ? jogosTxt.split('\n').map(l => `> ${l.trim()}`).join('\n') : '';
+
+  const valores = {
+    nome: candidato.nome || candidato.nome_completo || '',
+    titulo: tituloBolao(b),
+    concurso: b.concurso ?? '—',
+    data_sorteio: fmtDataExtenso(b.data_sorteio),
+    premio: b.premio_estimado || '—',
+    valor_meia: fmtReaisSufixo(b.valor_cota_meia),
+    valor_inteira: fmtReaisSufixo(b.valor_cota_inteira),
+    premiacao_meia: premiacaoMeia,
+    premiacao_inteira: premiacaoInteira,
+    jogos,
+    cotas_restantes: ofertaCotasRestantes != null ? ofertaCotasRestantes : '',
+    saldo: fmtMoeda(candidato.saldo),
+    link: linkPublico,
+  };
+  const presentes = {
+    saldo: candidato.saldo > 0,
+    premiacao_meia: !!premiacaoMeia,
+    premiacao_inteira: !!premiacaoInteira,
+    premiacao: !!premiacaoInteira,   // envolve a ressalva sobre o valor estimado
+    jogos: !!jogos,
+    cotas_restantes: ofertaCotasRestantes != null,
+  };
+  return aplicarTemplate(document.getElementById('oferta-template').value, valores, presentes);
+}
+
+// Saldo mínimo para o cliente entrar no filtro "Com saldo". Não é o valor de
+// meia cota de propósito: um saldo pequeno ainda é argumento de conversa
+// ("você tem R$ 5 aqui, completa R$ 8 e fecha a cota"). O corte serve só para
+// não poluir a lista com troco de centavos.
+const SALDO_MINIMO_OFERTA = 2;
+
+function filtrarCandidatos(filtro) {
+  if (filtro === 'com-saldo')    return ofertaCandidatos.filter(c => c.saldo > SALDO_MINIMO_OFERTA);
+  if (filtro === 'nao-enviados') return ofertaCandidatos.filter(c => !c.oferta_enviada_em);
+  if (['recorrente','sumido','novo'].includes(filtro)) return ofertaCandidatos.filter(c => c.segmento === filtro);
+  return ofertaCandidatos;
+}
+
+function renderOfertasLista(filtro) {
+  ofertaFiltro = filtro;
+  ['todos','com-saldo','recorrente','sumido','novo','nao-enviados'].forEach(f => {
+    const el = document.getElementById('oferta-chip-' + f);
+    if (!el) return;
+    el.style.background = f === filtro ? 'var(--primary)' : 'var(--border)';
+    el.style.color      = f === filtro ? '#fff'           : 'var(--muted)';
+  });
+  const container = document.getElementById('oferta-lista');
+  if (!container) return;
+
+  // Contador do cabeçalho acompanha os envios feitos sem sair do modal.
+  const resumoEl = document.getElementById('oferta-resumo');
+  if (resumoEl) {
+    const enviadas = ofertaCandidatos.filter(c => c.oferta_enviada_em).length;
+    resumoEl.textContent = `${ofertaCandidatos.length} cliente(s) fora do bolão • ${enviadas} já contatado(s)`;
+  }
+
+  // Quem já foi contatado vai para o fim: a lista é uma fila de trabalho.
+  const lista = [...filtrarCandidatos(filtro)].sort((a, b) =>
+    (a.oferta_enviada_em ? 1 : 0) - (b.oferta_enviada_em ? 1 : 0));
+
+  if (!lista.length) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:.8rem;padding:12px 0">Nenhum cliente neste filtro.</div>';
+    return;
+  }
+
+  container.innerHTML = lista.map(c => {
+    const seg = SEGMENTO_LABEL[c.segmento] || SEGMENTO_LABEL.novo;
+    const enviado = !!c.oferta_enviada_em;
+    return `
+      <div style="padding:12px 0;border-bottom:1px solid var(--border);opacity:${enviado ? '.55' : '1'}">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="avatar">${initials(c.nome)}</div>
+          <div class="item-info">
+            <div class="item-name">${escapeHtmlAdmin(c.nome || c.telefone)}</div>
+            <div class="item-detail" style="color:${seg.cor}">${seg.txt}${c.total_participacoes ? ` • ${c.total_participacoes} bolão(ões)` : ''}</div>
+            ${c.saldo > 0 ? `<div class="item-detail" style="color:var(--green)">💳 Saldo: ${fmtMoeda(c.saldo)}</div>` : ''}
+            ${enviado ? `<div style="font-size:.7rem;color:var(--green)">✓ Oferta enviada em ${fmtData(c.oferta_enviada_em)}</div>` : ''}
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;margin-top:8px">
+          <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--border);color:var(--muted)" onclick="previewOferta('${c.telefone}')">👁 Prévia</button>
+          ${enviado
+            ? `<button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:var(--accent2);color:var(--info)" onclick="desfazerOferta('${c.telefone}')">Desmarcar</button>`
+            : ''}
+          <button class="btn btn-sm" style="font-size:.65rem;padding:4px 8px;background:#25D366;color:#fff" onclick="enviarOferta('${c.telefone}')">${enviado ? 'Enviar de novo' : 'WhatsApp'}</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function previewOferta(telefone) {
+  const c = ofertaCandidatos.find(x => x.telefone === telefone);
+  if (!c) return;
+  alert(montarMensagemOferta(c));
+}
+
+// window.open direto no handler do clique (sem await antes) — se houvesse um
+// await, o browser trataria a abertura como popup e bloquearia.
+function enviarOferta(telefone) {
+  const c = ofertaCandidatos.find(x => x.telefone === telefone);
+  if (!c) return;
+  const mensagem = montarMensagemOferta(c);
+  window.open(`https://wa.me/${telefone}?text=${encodeURIComponent(mensagem)}`, '_blank');
+  marcarOfertaEnviada(telefone);
+}
+
+// Atualização otimista (mesmo padrão de marcarComprovanteEnviado): o ✓ aparece
+// na hora, a gravação vai atrás.
+async function marcarOfertaEnviada(telefone) {
+  const idx = ofertaCandidatos.findIndex(c => c.telefone === telefone);
+  if (idx !== -1) ofertaCandidatos[idx] = { ...ofertaCandidatos[idx], oferta_enviada_em: new Date().toISOString() };
+  renderOfertasLista(ofertaFiltro);
+  const { error } = await api.post(`/boloes/${ofertaBolao.id}/ofertas`, { telefone });
+  if (error) toast('Enviado, mas não consegui registrar: ' + error.message, true);
+}
+
+async function desfazerOferta(telefone) {
+  const idx = ofertaCandidatos.findIndex(c => c.telefone === telefone);
+  if (idx !== -1) ofertaCandidatos[idx] = { ...ofertaCandidatos[idx], oferta_enviada_em: null };
+  renderOfertasLista(ofertaFiltro);
+  const { error } = await api.delete(`/boloes/${ofertaBolao.id}/ofertas/${telefone}`);
+  if (error) toast('Erro ao desmarcar: ' + error.message, true);
+}
+
+// Grava a mensagem no servidor: a partir daqui ela é a que vale em qualquer
+// bolão e em qualquer aparelho, até ser alterada de novo.
+async function salvarTemplateOferta() {
+  const corpo = document.getElementById('oferta-template').value;
+  const { data, error } = await api.put('/templates/oferta_bolao', { corpo });
+  if (error) { toast('Erro ao salvar: ' + error.message, true); return; }
+  ofertaTemplateSalvo = data.corpo;
+  ofertaTemplatePersonalizado = data.personalizado;
+  atualizarStatusTemplate();
+  toast('Mensagem salva! É ela que vai daqui em diante.');
+}
+
+async function restaurarTemplateOferta() {
+  if (!confirm('Descartar sua mensagem personalizada e voltar ao texto padrão?')) return;
+  const { error } = await api.put('/templates/oferta_bolao', { corpo: '' });
+  if (error) { toast('Erro ao restaurar: ' + error.message, true); return; }
+  const { data } = await api.get('/templates/oferta_bolao');
+  document.getElementById('oferta-template').value = data.corpo;
+  ofertaTemplateSalvo = data.corpo;
+  ofertaTemplatePersonalizado = data.personalizado;
+  atualizarStatusTemplate();
+  renderOfertasLista(ofertaFiltro);
+  toast('Mensagem padrão restaurada.');
 }
 
 // ============================================================

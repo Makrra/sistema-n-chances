@@ -20,6 +20,7 @@ export function serializeBolao(row) {
     divisao_lucro: row.divisao_lucro,
     observacao: row.observacao,
     premio_estimado: row.premio_estimado,
+    premio_estimado_valor: row.premio_estimado_valor_centavos != null ? fromCentavos(row.premio_estimado_valor_centavos) : null,
     jogos_descricao: row.jogos_descricao,
     status: row.status,
     criado_em: row.criado_em,

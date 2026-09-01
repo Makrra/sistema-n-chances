@@ -7,6 +7,7 @@ import * as usuarios from './routes/usuarios.js';
 import * as extrato from './routes/extrato.js';
 import * as saques from './routes/saques.js';
 import * as jogos from './routes/jogos.js';
+import * as ofertas from './routes/ofertas.js';
 import * as publico from './routes/public.js';
 
 async function healthCheck(env) {
@@ -55,6 +56,14 @@ const routes = [
   { method: 'PUT',    pattern: new URLPattern({ pathname: '/api/boloes/:id/jogos' }),               handler: (env, req, p) => jogos.putJogos(env, req, p.id) },
   { method: 'GET',    pattern: new URLPattern({ pathname: '/api/boloes/:id/resultado' }),           handler: (env, req, p) => jogos.getResultado(env, p.id) },
   { method: 'PUT',    pattern: new URLPattern({ pathname: '/api/boloes/:id/resultado' }),           handler: (env, req, p) => jogos.putResultado(env, req, p.id) },
+
+  // Campanha de oferta do bolão a quem ainda não participa dele
+  // (ver docs/oferta-bolao-whatsapp.md).
+  { method: 'GET',    pattern: new URLPattern({ pathname: '/api/boloes/:id/ofertas' }),             handler: (env, req, p) => ofertas.listarCandidatos(env, p.id) },
+  { method: 'POST',   pattern: new URLPattern({ pathname: '/api/boloes/:id/ofertas' }),             handler: (env, req, p) => ofertas.registrarEnvio(env, req, p.id) },
+  { method: 'DELETE', pattern: new URLPattern({ pathname: '/api/boloes/:id/ofertas/:telefone' }),   handler: (env, req, p) => ofertas.removerEnvio(env, p.id, p.telefone) },
+  { method: 'GET',    pattern: new URLPattern({ pathname: '/api/templates/:chave' }),               handler: (env, req, p) => ofertas.getTemplate(env, p.chave) },
+  { method: 'PUT',    pattern: new URLPattern({ pathname: '/api/templates/:chave' }),               handler: (env, req, p) => ofertas.putTemplate(env, req, p.chave) },
 
   // Rotas públicas (sem Cloudflare Access — ver seção 10: bypass precisa ser
   // configurado à parte no Zero Trust Dashboard para /api/public/* e

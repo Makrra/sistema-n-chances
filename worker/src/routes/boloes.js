@@ -55,17 +55,21 @@ export async function create(env, request) {
   const id = newId();
   const criadoEm = nowIso();
   const codigo = await gerarCodigoBolao(env.DB, body.loteria || null, concurso);
+  const premioEstimadoValorCentavos = body.premio_estimado_valor != null && body.premio_estimado_valor !== ''
+    ? toCentavos(body.premio_estimado_valor) : null;
+
   const statements = [
     env.DB.prepare(`
       INSERT INTO boloes (id, nome, loteria, tipo_sorteio, concurso, data_sorteio,
         valor_cota_inteira_centavos, valor_cota_meia_centavos, quantidade_cotas,
-        custo_centavos, status, observacao, premio_estimado, jogos_descricao, criado_em, codigo)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        custo_centavos, status, observacao, premio_estimado, premio_estimado_valor_centavos,
+        jogos_descricao, criado_em, codigo)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `).bind(
       id, nome, body.loteria || null, body.tipo_sorteio || null, concurso, dataSorteio,
       toCentavos(body.valor_cota_inteira), toCentavos(body.valor_cota_meia), quantidadeCotas,
       toCentavos(body.custo), 'ABERTO', body.observacao || null,
-      body.premio_estimado || null, body.jogos_descricao || null, criadoEm, codigo
+      body.premio_estimado || null, premioEstimadoValorCentavos, body.jogos_descricao || null, criadoEm, codigo
     ),
   ];
 
@@ -97,18 +101,27 @@ export async function update(env, request, id) {
   // especial antigo, igual ao comportamento do form (não confia no client).
   const nome = body.tipo_sorteio === 'especial' ? (body.nome || null) : null;
 
+  // Premiação estimada e descrição dos jogos só podiam ser definidas na
+  // criação — sem isso não havia como preencher (nem corrigir) esses campos
+  // num bolão já aberto, e eles alimentam as mensagens de divulgação e de
+  // oferta (ver docs/oferta-bolao-whatsapp.md).
+  const premioEstimadoValorCentavos = body.premio_estimado_valor != null && body.premio_estimado_valor !== ''
+    ? toCentavos(body.premio_estimado_valor) : null;
+
   let result;
   try {
     result = await env.DB.prepare(`
       UPDATE boloes SET nome=?, loteria=?, tipo_sorteio=?, concurso=?, data_sorteio=?,
         valor_cota_inteira_centavos=?, valor_cota_meia_centavos=?, quantidade_cotas=?,
-        premio_ganho_centavos=?, custo_centavos=?, observacao=?
+        premio_ganho_centavos=?, custo_centavos=?, observacao=?,
+        premio_estimado=?, premio_estimado_valor_centavos=?, jogos_descricao=?
       WHERE id=?
     `).bind(
       nome, body.loteria || null, body.tipo_sorteio || null, concurso, dataSorteio,
       toCentavos(body.valor_cota_inteira), toCentavos(body.valor_cota_meia),
       body.quantidade_cotas != null ? Number(body.quantidade_cotas) : null,
-      toCentavos(body.premio_ganho), toCentavos(body.custo), body.observacao || null, id
+      toCentavos(body.premio_ganho), toCentavos(body.custo), body.observacao || null,
+      body.premio_estimado || null, premioEstimadoValorCentavos, body.jogos_descricao || null, id
     ).run();
   } catch (err) { throw classifyD1Error(err); }
 
