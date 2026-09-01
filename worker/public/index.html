@@ -966,7 +966,21 @@ function toast(msg, error = false) {
 // HELPERS
 // ============================================================
 const fmtMoeda = v => 'R$ ' + parseFloat(v||0).toFixed(2).replace('.', ',');
-const fmtData  = d => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+// Aceita tanto data pura ('2026-08-20', ex. data_sorteio) quanto timestamp ISO
+// completo ('2026-08-20T14:30:00Z', ex. criado_em/pago_em).
+//
+// A data pura NÃO pode passar por new Date(): a string sem horário é
+// interpretada como meia-noite UTC e, em UTC-3, o dia retrocede — o card do
+// bolão mostrava o sorteio um dia antes do cadastrado. Timestamps completos
+// continuam convertidos para o fuso local, que é o comportamento correto
+// para eles. Mesma razão pela qual fmtDataCurta/fmtDataExtenso já evitavam
+// o parse direto.
+const fmtData = d => {
+  if (!d) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d));
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  return new Date(d).toLocaleDateString('pt-BR');
+};
 // "7,00 R$" (sufixo, não prefixo) — formato usado na mensagem de
 // compartilhamento no WhatsApp, que segue o modelo enviado pelo organizador.
 const fmtReaisSufixo = v => parseFloat(v||0).toFixed(2).replace('.', ',') + ' R$';
