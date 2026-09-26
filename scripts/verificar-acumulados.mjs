@@ -1,24 +1,24 @@
 #!/usr/bin/env node
-// Verifica diariamente quais loterias da Caixa estão acumuladas e envia um
-// e-mail de resumo via Resend.
+// Verifica diariamente o prêmio estimado do próximo concurso de cada loteria
+// da Caixa e envia um e-mail via Resend SOMENTE quando alguma delas ultrapassa
+// o valor mínimo configurado (evita alarme para acumulados pequenos).
 //
 // Uso: node scripts/verificar-acumulados.mjs
 //
 // Variáveis de ambiente esperadas:
 //   RESEND_API_KEY   - API key do Resend (https://resend.com)
-//   EMAIL_REMETENTE  - endereço remetente (ex: onboarding@resend.dev)
+//   EMAIL_REMETENTE  - endereço remetente (ex: avisos@nchances.com.br)
 //   EMAIL_DESTINOS   - destinatários separados por vírgula
 //
 // Fonte dos dados: API pública da Caixa (mesma usada pelo site oficial de
 // resultados), um endpoint por modalidade.
 
 const LOTERIAS = [
-  { slug: 'megasena', nome: 'Mega-Sena' },
-  { slug: 'lotofacil', nome: 'Lotofácil' },
-  { slug: 'quina', nome: 'Quina' },
-  { slug: 'lotomania', nome: 'Lotomania' },
-  { slug: 'duplasena', nome: 'Dupla-Sena' },
-  { slug: 'timemania', nome: 'Timemania' },
+  { slug: 'megasena', nome: 'Mega-Sena', valorMinimo: 50_000_000 },
+  { slug: 'lotofacil', nome: 'Lotofácil', valorMinimo: 5_000_000 },
+  { slug: 'quina', nome: 'Quina', valorMinimo: 20_000_000 },
+  { slug: 'lotomania', nome: 'Lotomania', valorMinimo: 10_000_000 },
+  { slug: 'duplasena', nome: 'Dupla-Sena', valorMinimo: 10_000_000 },
 ];
 
 const API_BASE = 'https://servicebus2.caixa.gov.br/portaldeloterias/api';
@@ -72,44 +72,33 @@ async function coletarResultados() {
   return { sucesso, falhas };
 }
 
-function montarHtml({ sucesso, falhas }) {
-  const acumuladas = sucesso.filter((item) => item.acumulou);
-  const naoAcumuladas = sucesso.filter((item) => !item.acumulou);
+function montarHtml({ acimaDoMinimo, falhas }) {
   const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
-  const linhaAcumulada = (item) => `
+  const linha = (item) => `
     <tr>
-      <td style="padding:8px 12px;border-bottom:1px solid #eee;">✅ <strong>${item.nome}</strong> (concurso ${item.concurso})</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;">🎉 <strong>${item.nome}</strong> (concurso ${item.concurso})</td>
       <td style="padding:8px 12px;border-bottom:1px solid #eee;">${formatarMoeda(item.valorEstimadoProximo)}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #eee;">${formatarData(item.dataProximoConcurso)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">mín. ${formatarMoeda(item.valorMinimo)}</td>
     </tr>`;
-
-  const linhaNaoAcumulada = (item) => `<li>${item.nome} (concurso ${item.concurso}) — não acumulou</li>`;
 
   const linhaFalha = (item) => `<li>${item.loteria}: ${item.erro}</li>`;
 
   return `
-  <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-    <h2>🎰 Acumulados de hoje (${hoje})</h2>
-    ${
-      acumuladas.length
-        ? `<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
-            <thead>
-              <tr style="text-align:left;background:#f5f5f5;">
-                <th style="padding:8px 12px;">Loteria</th>
-                <th style="padding:8px 12px;">Prêmio estimado</th>
-                <th style="padding:8px 12px;">Próximo sorteio</th>
-              </tr>
-            </thead>
-            <tbody>${acumuladas.map(linhaAcumulada).join('')}</tbody>
-          </table>`
-        : '<p>Nenhuma loteria acumulada hoje.</p>'
-    }
-    ${
-      naoAcumuladas.length
-        ? `<p style="color:#666;font-size:14px;">Não acumularam: <ul>${naoAcumuladas.map(linhaNaoAcumulada).join('')}</ul></p>`
-        : ''
-    }
+  <div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;">
+    <h2>🎰 Prêmios acima do parâmetro hoje (${hoje})</h2>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+      <thead>
+        <tr style="text-align:left;background:#f5f5f5;">
+          <th style="padding:8px 12px;">Loteria</th>
+          <th style="padding:8px 12px;">Prêmio estimado</th>
+          <th style="padding:8px 12px;">Próximo sorteio</th>
+          <th style="padding:8px 12px;">Parâmetro</th>
+        </tr>
+      </thead>
+      <tbody>${acimaDoMinimo.map(linha).join('')}</tbody>
+    </table>
     ${
       falhas.length
         ? `<p style="color:#c00;font-size:14px;">Falha ao consultar: <ul>${falhas.map(linhaFalha).join('')}</ul></p>`
@@ -118,7 +107,7 @@ function montarHtml({ sucesso, falhas }) {
   </div>`;
 }
 
-async function enviarEmail(html, temAcumulada) {
+async function enviarEmail(html) {
   const apiKey = process.env.RESEND_API_KEY;
   const remetente = process.env.EMAIL_REMETENTE || 'onboarding@resend.dev';
   const destinos = (process.env.EMAIL_DESTINOS || '')
@@ -129,9 +118,7 @@ async function enviarEmail(html, temAcumulada) {
   if (!apiKey) throw new Error('RESEND_API_KEY não definida');
   if (!destinos.length) throw new Error('EMAIL_DESTINOS não definida');
 
-  const assunto = temAcumulada
-    ? '🎰 Tem loteria acumulada hoje!'
-    : 'Resumo diário — nenhuma acumulada hoje';
+  const assunto = '🎰 Prêmio bom pra bolão hoje!';
 
   const resposta = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -154,16 +141,24 @@ async function enviarEmail(html, temAcumulada) {
 }
 
 async function main() {
-  const resultado = await coletarResultados();
-  const html = montarHtml(resultado);
-  const temAcumulada = resultado.sucesso.some((item) => item.acumulou);
+  const { sucesso, falhas } = await coletarResultados();
+  const acimaDoMinimo = sucesso.filter(
+    (item) => Number(item.valorEstimadoProximo || 0) >= item.valorMinimo
+  );
 
-  await enviarEmail(html, temAcumulada);
-
-  console.log(`E-mail enviado. Acumuladas: ${resultado.sucesso.filter((i) => i.acumulou).length}/${resultado.sucesso.length}.`);
-  if (resultado.falhas.length) {
-    console.warn('Falhas na consulta:', resultado.falhas);
+  if (falhas.length) {
+    console.warn('Falhas na consulta:', falhas);
   }
+
+  if (!acimaDoMinimo.length) {
+    console.log('Nenhuma loteria acima do parâmetro hoje. E-mail não enviado.');
+    return;
+  }
+
+  const html = montarHtml({ acimaDoMinimo, falhas });
+  await enviarEmail(html);
+
+  console.log(`E-mail enviado. Acima do parâmetro: ${acimaDoMinimo.map((i) => i.nome).join(', ')}.`);
 }
 
 main().catch((erro) => {
