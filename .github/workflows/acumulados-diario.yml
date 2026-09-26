@@ -1,0 +1,24 @@
+name: Verificar loterias acumuladas
+
+on:
+  schedule:
+    # 11:00 UTC = 08:00 no horário de Brasília (sem horário de verão hoje em dia)
+    - cron: '0 11 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Executar verificação e enviar e-mail
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_REMETENTE: avisos@nchances.com.br
+          EMAIL_DESTINOS: neydson_daniel@hotmail.com,neydson@petrobras.com.br
+        run: node scripts/verificar-acumulados.mjs
