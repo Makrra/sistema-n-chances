@@ -2,8 +2,10 @@ name: Verificar loterias acumuladas
 
 on:
   schedule:
-    # 11:00 UTC = 08:00 no horário de Brasília (sem horário de verão hoje em dia)
-    - cron: '0 11 * * *'
+    # 09:37 UTC = 06:37 em Brasília. Minuto "quebrado" e disparo com folga
+    # antes das 8h: o cron do GitHub Actions não é pontual em horários cheios
+    # (ex: 11:00 UTC), que ficam sobrecarregados e podem atrasar horas.
+    - cron: '37 9 * * *'
   workflow_dispatch: {}
 
 jobs:
