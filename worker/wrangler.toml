@@ -56,6 +56,14 @@ custom_domain = true
 [env.production]
 workers_dev = true
 
+# Resumo diário de loterias por e-mail: 11:00 UTC = 08:00 em Brasília.
+# Secrets (wrangler secret put ... --env production): RESEND_API_KEY, EMAIL_DESTINOS.
+[env.production.triggers]
+crons = ["0 11 * * *"]
+
+[env.production.vars]
+EMAIL_REMETENTE = "avisos@nchances.com.br"
+
 [env.production.assets]
 directory = "./public"
 binding = "ASSETS"

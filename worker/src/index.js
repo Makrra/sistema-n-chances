@@ -9,6 +9,7 @@ import * as saques from './routes/saques.js';
 import * as jogos from './routes/jogos.js';
 import * as ofertas from './routes/ofertas.js';
 import * as publico from './routes/public.js';
+import { enviarResumoAcumulados } from './lib/acumulados.js';
 
 async function healthCheck(env) {
   const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM usuarios').first();
@@ -111,5 +112,9 @@ export default {
       }
     }
     return json({ error: 'not_found' }, 404);
+  },
+
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(enviarResumoAcumulados(env));
   },
 };
