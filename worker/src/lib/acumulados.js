@@ -110,8 +110,33 @@ async function enviarEmail(env, assunto, html) {
   }
 }
 
+function montarTextoTelegram(assunto, { itens, falhas }) {
+  const linhas = itens.map((i) => {
+    const bateu = i.valorEstimadoProximo >= i.valorMinimo;
+    return `${bateu ? '🎉' : '▫️'} <b>${i.nome}</b>: ${moeda(i.valorEstimadoProximo)} (mín. ${moeda(i.valorMinimo)}) — sorteio ${i.dataProximoConcurso}`;
+  });
+  const erros = falhas.map((f) => `⚠️ ${f.loteria}: ${f.erro}`);
+  return [`<b>${assunto}</b>`, '', ...linhas, ...(erros.length ? ['', ...erros] : [])].join('\n');
+}
+
+async function enviarTelegram(env, texto) {
+  const resposta = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: env.TELEGRAM_CHAT_ID,
+      text: texto,
+      parse_mode: 'HTML',
+    }),
+  });
+  if (!resposta.ok) {
+    throw new Error(`Telegram ${resposta.status}: ${await resposta.text()}`);
+  }
+}
+
 export async function enviarResumoAcumulados(env) {
-  const { itens, falhas } = await coletar();
+  const dados = await coletar();
+  const { itens, falhas } = dados;
   const acima = itens.filter((i) => i.valorEstimadoProximo >= i.valorMinimo);
 
   let assunto;
@@ -119,7 +144,20 @@ export async function enviarResumoAcumulados(env) {
   else if (!itens.length) assunto = '⚠️ Falha ao consultar as loterias hoje';
   else assunto = 'Loterias: nenhuma acima do parâmetro hoje';
 
-  await enviarEmail(env, assunto, montarHtml({ itens, falhas }));
-  console.log(`Resumo enviado: "${assunto}"`);
-  return { assunto, consultadas: itens.length, falhas };
+  const canais = [{ nome: 'email', enviar: () => enviarEmail(env, assunto, montarHtml(dados)) }];
+  if (env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID) {
+    canais.push({ nome: 'telegram', enviar: () => enviarTelegram(env, montarTextoTelegram(assunto, dados)) });
+  }
+
+  const resultados = await Promise.allSettled(canais.map((c) => c.enviar()));
+  const envio = {};
+  resultados.forEach((r, i) => {
+    envio[canais[i].nome] = r.status === 'fulfilled' ? 'ok' : r.reason.message;
+  });
+
+  console.log(`Resumo "${assunto}":`, JSON.stringify(envio));
+  if (resultados.every((r) => r.status === 'rejected')) {
+    throw new Error(`Nenhum canal enviou: ${JSON.stringify(envio)}`);
+  }
+  return { assunto, consultadas: itens.length, falhas, envio };
 }
