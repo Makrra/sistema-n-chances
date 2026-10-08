@@ -121,4 +121,5 @@ export async function enviarResumoAcumulados(env) {
 
   await enviarEmail(env, assunto, montarHtml({ itens, falhas }));
   console.log(`Resumo enviado: "${assunto}"`);
+  return { assunto, consultadas: itens.length, falhas };
 }

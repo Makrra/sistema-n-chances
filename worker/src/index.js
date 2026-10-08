@@ -19,6 +19,13 @@ async function healthCheck(env) {
 const routes = [
   { method: 'GET',    pattern: new URLPattern({ pathname: '/api/health' }),                        handler: (env) => healthCheck(env) },
   { method: 'GET',    pattern: new URLPattern({ pathname: '/api/dashboard' }),                      handler: (env) => dashboard.getDashboard(env) },
+  { method: 'GET',    pattern: new URLPattern({ pathname: '/api/acumulados/enviar-agora' }),         handler: async (env) => {
+      try {
+        return json({ ok: true, ...(await enviarResumoAcumulados(env)) });
+      } catch (err) {
+        return json({ ok: false, erro: err.message }, 500);
+      }
+    } },
 
   { method: 'GET',    pattern: new URLPattern({ pathname: '/api/boloes' }),                         handler: (env) => boloes.list(env) },
   { method: 'POST',   pattern: new URLPattern({ pathname: '/api/boloes' }),                         handler: (env, req) => boloes.create(env, req) },
