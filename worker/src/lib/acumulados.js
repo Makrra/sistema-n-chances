@@ -46,15 +46,12 @@ function montarHtml({ itens, falhas }) {
   const acima = itens.filter((i) => i.valorEstimadoProximo >= i.valorMinimo);
 
   const td = 'padding:8px 12px;border-bottom:1px solid #eee;';
-  const linha = (i) => {
-    const bateu = i.valorEstimadoProximo >= i.valorMinimo;
-    return `<tr>
-      <td style="${td}">${bateu ? '🎉' : '▫️'} <strong>${i.nome}</strong> (concurso ${i.concurso})</td>
+  const linha = (i) => `<tr>
+      <td style="${td}">🎉 <strong>${i.nome}</strong> (concurso ${i.concurso})</td>
       <td style="${td}">${moeda(i.valorEstimadoProximo)}</td>
       <td style="${td}">${i.dataProximoConcurso}</td>
       <td style="${td}color:#666;">mín. ${moeda(i.valorMinimo)}</td>
     </tr>`;
-  };
 
   const titulo = acima.length
     ? `🎰 Prêmios acima do parâmetro hoje (${hoje})`
@@ -63,7 +60,9 @@ function montarHtml({ itens, falhas }) {
   return `
   <div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;">
     <h2>${titulo}</h2>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+    ${
+      acima.length
+        ? `<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
       <thead>
         <tr style="text-align:left;background:#f5f5f5;">
           <th style="padding:8px 12px;">Loteria</th>
@@ -72,8 +71,10 @@ function montarHtml({ itens, falhas }) {
           <th style="padding:8px 12px;">Parâmetro</th>
         </tr>
       </thead>
-      <tbody>${itens.map(linha).join('')}</tbody>
-    </table>
+      <tbody>${acima.map(linha).join('')}</tbody>
+    </table>`
+        : ''
+    }
     ${
       falhas.length
         ? `<p style="color:#c00;font-size:14px;">Falha ao consultar:</p><ul>${falhas
@@ -111,10 +112,9 @@ async function enviarEmail(env, assunto, html) {
 }
 
 function montarTextoTelegram(assunto, { itens, falhas }) {
-  const linhas = itens.map((i) => {
-    const bateu = i.valorEstimadoProximo >= i.valorMinimo;
-    return `${bateu ? '🎉' : '▫️'} <b>${i.nome}</b>: ${moeda(i.valorEstimadoProximo)} (mín. ${moeda(i.valorMinimo)}) — sorteio ${i.dataProximoConcurso}`;
-  });
+  const linhas = itens
+    .filter((i) => i.valorEstimadoProximo >= i.valorMinimo)
+    .map((i) => `🎉 <b>${i.nome}</b>: ${moeda(i.valorEstimadoProximo)} (mín. ${moeda(i.valorMinimo)}) — sorteio ${i.dataProximoConcurso}`);
   const erros = falhas.map((f) => `⚠️ ${f.loteria}: ${f.erro}`);
   return [`<b>${assunto}</b>`, '', ...linhas, ...(erros.length ? ['', ...erros] : [])].join('\n');
 }
